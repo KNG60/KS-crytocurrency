@@ -24,4 +24,5 @@ Nie kopie bloków ani nie utrzymuje blockchaina
 - API HTTP do odpytywania
 
 ### TODO
-- wszystko
+- Konteneryzacja wezłów
+- Testy
