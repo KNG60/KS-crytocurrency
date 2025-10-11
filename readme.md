@@ -7,7 +7,7 @@ Nie kopie bloków ani nie utrzymuje blockchaina
 
 ## Założenia
 ### Zarządzanie kontami
-- Tworzenie nowego konta
+- Tworzenie nowego konta  :white_check_mark:
 - Zapis kluczy w lokalnej bazie SQLite
 - Szyfrowanie klucza prywatnego hasłem użytkownika.
 - Nadawanie kontu etykiety
