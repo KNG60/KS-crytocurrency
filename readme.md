@@ -15,8 +15,8 @@ System składa się z dwóch głównych komponentów:
 - [ ] **Wallet:** Generowanie i przechowywanie pary kluczy kryptograficznych
 - [ ] **Wallet:** Podpisywanie danych (transakcji) przy użyciu klucza prywatnego
 - [ ] **Wallet:** Zapisywanie i wczytywanie portfela z pliku
-- [ ] **Node:** Możliwość komunikacji z innymi węzłami w sieci
-- [ ] **Node:** Rejestracja i przechowywanie informacji o innych węzłach w sieci
+- [x] **Node:** Możliwość komunikacji z innymi węzłami w sieci
+- [x] **Node:** Rejestracja i przechowywanie informacji o innych węzłach w sieci
 
 ### **Etap 2: Prosty łańcuch bloków**
 
@@ -46,3 +46,51 @@ System składa się z dwóch głównych komponentów:
 - [ ] **Wallet:** Wyjaśnienie zastosowanej kryptografii i podpisów cyfrowych
 - [ ] **Node:** Opis architektury systemu i sposobu działania węzłów
 - [ ] **Node:** Podsumowanie wyników testów, bezpieczeństwa i symulacji działania sieci
+
+---
+
+## Instrukcja
+
+### Instalacja
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Uruchomienie węzłów
+
+```bash
+python run_node.py --host 127.0.0.1 --port 5000
+
+python run_node.py --host 127.0.0.1 --port 5001 --seeds 127.0.0.1:5000
+
+python run_node.py --host 127.0.0.1 --port 5002 --seeds 127.0.0.1:5001
+```
+
+### Pomoc
+
+```bash
+python run_node.py --help
+```
+
+### Lista peerów
+
+```bash
+curl http://127.0.0.1:5000/peers
+```
+
+### Ping węzła
+
+```bash
+curl http://127.0.0.1:5000/ping
+```
+
+### Dodanie peera
+
+```bash
+curl -X POST http://127.0.0.1:5000/peers \
+  -H "Content-Type: application/json" \
+  -d '{"host": "127.0.0.1", "port": 5001}'
+```
