@@ -72,6 +72,16 @@ def gen_key_pair(password: str):
 
 def add_account(label: str, balance: float = 0.0, db_name=DEFAULT_DB_NAME):
     """Dodaje nowe konto do bazy danych."""
+    # Only allow creating accounts with a zero balance
+    try:
+        # Use a small tolerance for float comparisons
+        if abs(float(balance) - 0.0) > 1e-9:
+            print(f"ERROR: New accounts must have a balance of 0.0. Provided: {balance}")
+            return False
+    except (TypeError, ValueError):
+        print(f"ERROR: Invalid balance value: {balance}")
+        return False
+
     db_path = get_db_path(db_name)
     with sqlite3.connect(db_path) as conn:
         try:
@@ -160,7 +170,6 @@ def parse_args():
     # Komenda add - dodaje nowe konto
     add_parser = subparsers.add_parser('add', help='Add a new account')
     add_parser.add_argument('label', help='Account label/name')
-    add_parser.add_argument('--balance', type=float, default=0.0, help='Initial balance (default: 0.0)')
     
     # Komenda list - wyświetla listę kont
     list_parser = subparsers.add_parser('list', help='List all accounts')
@@ -185,11 +194,15 @@ def main():
     
     if args.command == 'init':
         # Inicjalizacja bazy danych o podanej nazwie
+        db_path = get_db_path(db_name)
+        if db_path.exists():
+            print(f"ERROR: Database already exists: {db_name}. Init aborted.")
+            return 2
         db_path = init_db(db_name)
         print(f"SUCCESS: Wallet database initialized: {db_name}")
     elif args.command == 'add':
-        # Dodanie konta do bazy danych
-        add_account(args.label, args.balance, db_name)
+        # Dodanie konta do bazy danych (balance fixed to 0.0)
+        add_account(args.label, 0.0, db_name)
     elif args.command == 'list':
         # Lista kont
         list_accounts(db_name)
