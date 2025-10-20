@@ -170,7 +170,10 @@ py -3 wallet/demo_wallet.py
 
 ### Uwagi
 - Klucze prywatne są szyfrowane hasłem
-- Format kluczy: ECDSA secp256k1, eksport PEM
+- Format kluczy: ECDSA secp256k1 (bitcoin), eksport PEM (PKCS#8)
+
+trudności problemu logarytmu dyskretnego na krzywych eliptycznych (ECDLP).
+Serializacja prywatnego klcuza PEM
 
 ---
 

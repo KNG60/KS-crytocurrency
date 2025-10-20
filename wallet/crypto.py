@@ -7,8 +7,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 
-def gen_key_pair(password: str):
-    """Generates a secp256k1 key pair and returns (priv_pem, pub_hex)"""
+def gen_key_pair(password: str)-> tuple[bytes, str]:
     priv = ec.generate_private_key(ec.SECP256K1(), default_backend())
     pub = priv.public_key()
     pub_bytes = pub.public_bytes(
