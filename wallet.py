@@ -82,11 +82,11 @@ def add_account(label: str, balance: float = 0.0, db_name=DEFAULT_DB_NAME):
                 (label, balance, pub_hex, priv_pem)
             )
             conn.commit()
-            print(f"✅ Added account '{label}' (balance {balance})")
+            print(f"SUCCESS: Added account '{label}' (balance {balance})")
             print(f"   pubkey_hex: {pub_hex[:20]}...{pub_hex[-10:]}")
             return True
         except sqlite3.IntegrityError:
-            print(f"⚠️  Account '{label}' already exists.")
+            print(f"WARNING: Account '{label}' already exists.")
             return False
 
 
@@ -97,10 +97,10 @@ def delete_account(label: str, db_name=DEFAULT_DB_NAME):
         cur = conn.execute("DELETE FROM account WHERE label = ?", (label,))
         conn.commit()
         if cur.rowcount:
-            print(f"🗑️  Deleted account '{label}'")
+            print(f"SUCCESS: Deleted account '{label}'")
             return True
         else:
-            print(f"ℹ️  Account '{label}' not found")
+            print(f"INFO: Account '{label}' not found")
             return False
 
 
@@ -111,10 +111,10 @@ def list_accounts(db_name=DEFAULT_DB_NAME):
         cur = conn.execute("SELECT id, label, balance, pubkey_hex, created_at FROM account ORDER BY id ASC")
         rows = cur.fetchall()
     if not rows:
-        print(f"📭 No accounts in the database: {db_path}")
+        print(f"INFO: No accounts in the database: {db_name}")
         return False
     else:
-        print(f"\n=== ACCOUNT LIST ({db_path}) ===")
+        print(f"\n=== ACCOUNT LIST ({db_name}) ===")
         for r in rows:
             pub_short = r[3][:20] + "..." + r[3][-10:]
             print(f"[{r[0]}] {r[1]} | balance={r[2]} | pubkey={pub_short} | {r[4]}")
@@ -132,7 +132,7 @@ def get_account_details(label: str, db_name=DEFAULT_DB_NAME):
         account = cur.fetchone()
     
     if not account:
-        print(f"ℹ️  Account '{label}' not found in database: {db_path}")
+        print(f"INFO: Account '{label}' not found in database: {db_name}")
         return None
     
     return {
@@ -186,7 +186,7 @@ def main():
     if args.command == 'init':
         # Inicjalizacja bazy danych o podanej nazwie
         db_path = init_db(db_name)
-        print(f"✅ Wallet database initialized: {db_path}")
+        print(f"SUCCESS: Wallet database initialized: {db_name}")
     elif args.command == 'add':
         # Dodanie konta do bazy danych
         add_account(args.label, args.balance, db_name)
