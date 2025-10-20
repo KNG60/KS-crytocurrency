@@ -51,7 +51,7 @@ System składa się z dwóch głównych komponentów:
 
 ## Instrukcja
 
-### Instalacja
+### Środowisko
 
 ```bash
 python3 -m venv .venv
@@ -94,3 +94,6 @@ curl -X POST http://127.0.0.1:5000/peers \
   -H "Content-Type: application/json" \
   -d '{"host": "127.0.0.1", "port": 5001}'
 ```
+## Uwagi
+Dodanie poźniejsze wezła do istniejącego już nie aktualizuje listy peersów dodawanego wezła.
+Podczas dodwania nowego wezła dodawana jest tez lista jego węzłów.W przyszłosci rozważyć zapytanie też wezłow z tej listy. Tym samym zwiekszac rozpoznianie sieci. 
