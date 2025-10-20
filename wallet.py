@@ -154,6 +154,54 @@ def get_account_details(label: str, db_name=DEFAULT_DB_NAME):
     }
 
 
+def get_private_key_pem(label: str, db_name=DEFAULT_DB_NAME):
+    """Pobiera zaszyfrowany PEM prywatnego klucza (BLOB) z bazy danych dla danego konta."""
+    db_path = get_db_path(db_name)
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.execute(
+            "SELECT privkey_pem FROM account WHERE label = ?",
+            (label,)
+        )
+        row = cur.fetchone()
+
+    if not row:
+        print(f"INFO: Account '{label}' not found in database: {db_name}")
+        return None
+
+    return row[0]
+
+
+def show_private_key(label: str, db_name=DEFAULT_DB_NAME):
+    """Wyświetla odszyfrowany prywatny klucz PEM po podaniu hasła."""
+    pem_blob = get_private_key_pem(label, db_name)
+    if pem_blob is None:
+        return False
+
+    # Prosimy o hasło do odszyfrowania PEM
+    password = getpass(f"Password to decrypt private key for account '{label}': ")
+    try:
+        private_key = serialization.load_pem_private_key(
+            pem_blob,
+            password=password.encode('utf-8'),
+            backend=default_backend()
+        )
+    except Exception as e:
+        print(f"ERROR: Failed to decrypt or load private key: {e}")
+        return False
+
+    # Wyeksportuj w czystym PEM bez szyfrowania i pokaż
+    priv_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+    print(f"\n--- PRIVATE KEY PEM for {label} ---")
+    print(priv_pem.decode('utf-8'))
+    print("--- end ---\n")
+    return True
+
+
 def parse_args():
     """Przetwarza argumenty wiersza poleceń."""
     parser = argparse.ArgumentParser(description='Manage cryptocurrency wallet accounts')
@@ -181,6 +229,10 @@ def parse_args():
     # Komenda show - wyświetla szczegóły konta
     show_parser = subparsers.add_parser('show', help='Show details of specific account')
     show_parser.add_argument('label', help='Account label/name to show')
+
+    # Komenda show-priv - wyświetla odszyfrowany prywatny klucz PEM po podaniu hasła
+    show_priv_parser = subparsers.add_parser('show-priv', help='Show decrypted private key (PEM) for account')
+    show_priv_parser.add_argument('label', help='Account label/name to show private key for')
     
     return parser.parse_args()
 
@@ -218,6 +270,9 @@ def main():
             print(f"Balance: {account['balance']}")
             print(f"Public Key: {account['pubkey_hex']}")
             print(f"Created: {account['created_at']}")
+    elif args.command == 'show-priv':
+        # Wyświetlenie odszyfrowanego prywatnego klucza
+        show_private_key(args.label, db_name)
     else:
         print("No command specified. Use --help for available commands.")
         return 1
