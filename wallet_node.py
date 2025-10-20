@@ -1,101 +1,55 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+import argparse
+import os
+from pprint import pprint
+
+from wallet.manager import WalletManager
 
 
-import sqlite3
-from getpass import getpass
-from pathlib import Path
+def main():
+    parser = argparse.ArgumentParser(description="Wallet utility")
+    parser.add_argument("--label", type=str, default="Crypto Bro Wallet", help="Wallet label")
+    parser.add_argument("--passphrase", type=str, default=None, help="Wallet bro-passphrase (or leave empty to prompt)")
+    parser.add_argument("--accounts", type=int, default=1, help="How many accounts to create for demo")
+    parser.add_argument("--balance-id", type=int, default=None, help="Show balance for account id")
+    parser.add_argument("--balance-addr", type=str, default=None, help="Show balance for account address")
+    args = parser.parse_args()
 
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ec
+    slug = args.label.replace(" ", "_")
+    wallet_db_path = os.path.join("db", f"wallet_{slug}.db")
+    wm = WalletManager(wallet_db_path)
+    # obtain passphrase securely if not provided as arg
+    if args.passphrase is None:
+        import getpass
 
-DB_PATH = Path("db/account.db")
-schema_table = """
-DROP TABLE IF EXISTS account;
-CREATE TABLE IF NOT EXISTS account (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    label TEXT UNIQUE NOT NULL,
-    balance REAL NOT NULL DEFAULT 0.0,
-    pubkey_hex TEXT NOT NULL,
-    privkey_pem BLOB NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-"""
-
-
-def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.executescript(schema_table)
-
-def gen_key_pair(password: str):
-    """Generates a secp256k1 key pair and returns (priv_pem, pub_hex)"""
-    priv = ec.generate_private_key(ec.SECP256K1(), default_backend())
-    pub = priv.public_key()
-    pub_bytes = pub.public_bytes(
-        encoding=serialization.Encoding.X962,
-        format=serialization.PublicFormat.UncompressedPoint
-    )
-    pub_hex = pub_bytes.hex()
-    enc = serialization.BestAvailableEncryption(password.encode("utf-8"))
-    priv_pem = priv.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=enc
-    )
-    return priv_pem, pub_hex
-
-def add_user(label: str, balance: float = 0.0):
-    with sqlite3.connect(DB_PATH) as conn:
-        try:
-            password = input(f"Password to encrypt the private key for '{label}': ")
-            priv_pem, pub_hex = gen_key_pair(password)
-            conn.execute(
-                "INSERT INTO account (label, balance, pubkey_hex, privkey_pem) VALUES (?,?,?,?)",
-                (label, balance, pub_hex, priv_pem)
-            )
-            conn.commit()
-            print(f"✅ Added user '{label}' (balance {balance})")
-            print(f"   pubkey_hex: {pub_hex[:20]}...{pub_hex[-10:]}")
-        except sqlite3.IntegrityError:
-            print(f"⚠️  User '{label}' already exists.")
-
-def delete_user(label: str):
-    with sqlite3.connect(DB_PATH) as conn:
-        print(label)
-        cur = conn.execute("DELETE FROM account WHERE label = ?", (label,))
-        conn.commit()
-        if cur.rowcount:
-            print(f"🗑️  Deleted '{label}'")
-        else:
-            print(f"ℹ️  User '{label}' not found")
-
-def list_users():
-    with sqlite3.connect(DB_PATH) as conn:
-        cur = conn.execute("SELECT id, label, balance, pubkey_hex, created_at FROM account ORDER BY id ASC")
-        rows = cur.fetchall()
-    if not rows:
-        print("📭 No users in the database.")
+        p = getpass.getpass("Passphrase for wallet: ")
     else:
-        print("\n=== USER LIST ===")
-        for r in rows:
-            pub_short = r[3][:20] + "..." + r[3][-10:]
-            print(f"[{r[0]}] {r[1]} | balance={r[2]} | pubkey={pub_short} | {r[4]}")
+        p = args.passphrase
 
-# --- TEST DEMO -------------------------------------------------------------
+    wm.create_wallet(args.label, p)
+    print(f"Created wallet with label '{args.label}'")
+    print(f"Wallet DB file: {wallet_db_path}")
+
+    for i in range(args.accounts):
+        acc = wm.create_account(f"Account {i+1}", p)
+        print(f" - account #{acc.id} -> {acc.address}")
+
+    print("\nAccounts:")
+    for acc in wm.list_accounts():
+        pprint(acc.__dict__)
+
+    # optionally show balance
+    if args.balance_id is not None or args.balance_addr is not None:
+        # unlock first
+        ok = wm.unlock(p)
+        if not ok:
+            print("Unable to unlock wallet with given passphrase")
+        else:
+            bal = wm.get_account_balance(account_id=args.balance_id, address=args.balance_addr)
+            if bal is None:
+                print("Account not found")
+            else:
+                print(f"Balance: {bal}")
+
 
 if __name__ == "__main__":
-    print("=== DEMO WALLET ===")
-    init_db()   
-        # Add users
-    add_user("Damian")
-    add_user("Kacper")
-
-    # Display the list
-    list_users()
-
-    # Delete one user
-    delete_user("Kacper")
-
-    # Display again
-    list_users()
+    main()
