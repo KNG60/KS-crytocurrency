@@ -1,24 +1,15 @@
-#!/usr/bin/env python3
-"""
-Simple example/demo script for wallet operations
-Shows all commands and their responses
-"""
-
 import subprocess
 import sys
 from pathlib import Path
 
-# Get parent directory (KS folder)
 PARENT_DIR = Path(__file__).parent.parent
 
-# Demo configuration
 DEMO_DB = "demo_wallet"
 DEMO_ACCOUNTS = ["alice", "bob", "charlie"]
 DEMO_PASSWORD = "demo123"
 
 
 def run_wallet_command(cmd):
-    """Run a wallet command and display output"""
     full_cmd = f"python run_wallet.py {cmd}"
     print("\n" + "=" * 70)
     print(f"COMMAND: {full_cmd}")
@@ -36,7 +27,6 @@ def run_wallet_command(cmd):
 
 
 def cleanup_demo_db():
-    """Remove demo database"""
     db_path = PARENT_DIR / "db" / f"{DEMO_DB}.db"
     if db_path.exists():
         db_path.unlink()
@@ -44,7 +34,6 @@ def cleanup_demo_db():
 
 
 def main():
-    """Run complete wallet demo"""
     print("\n" + "#" * 70)
     print("# WALLET DEMO - All Operations")
     print("#" * 70)
@@ -65,26 +54,20 @@ def main():
 
     input("Nacisnij ENTER aby kontynuowac...")
 
-    # Cleanup any existing demo database
     cleanup_demo_db()
 
-    # 1. Show help
     print("\n\n### 1. SHOW HELP ###")
     run_wallet_command("--help")
 
-    # 2. Initialize database
     print("\n\n### 2. INITIALIZE DATABASE ###")
     run_wallet_command(f"--name {DEMO_DB} init")
 
-    # 3. Try to initialize again (should fail)
     print("\n\n### 3. TRY TO INITIALIZE AGAIN (Should Fail) ###")
     run_wallet_command(f"--name {DEMO_DB} init")
 
-    # 4. Add accounts
     print("\n\n### 4. ADD ACCOUNTS ###")
     for account in DEMO_ACCOUNTS:
         print(f"\n--- Adding account: {account} ---")
-        # Create a process with input
         cmd = f"python run_wallet.py --name {DEMO_DB} add {account}"
         print(f"COMMAND: {cmd}")
         print(f"PASSWORD: {DEMO_PASSWORD}")
@@ -105,15 +88,12 @@ def main():
             print("STDERR:", stderr)
         print(f"Exit Code: {proc.returncode}")
 
-    # 5. List all accounts
     print("\n\n### 5. LIST ALL ACCOUNTS ###")
     run_wallet_command(f"--name {DEMO_DB} list")
 
-    # 6. Show specific account details
     print("\n\n### 6. SHOW ACCOUNT DETAILS (alice) ###")
     run_wallet_command(f"--name {DEMO_DB} show alice")
 
-    # 7. Show private key
     print("\n\n### 7. SHOW PRIVATE KEY (alice) ###")
     cmd = f"python run_wallet.py --name {DEMO_DB} show-priv alice"
     print(f"COMMAND: {cmd}")
@@ -135,7 +115,6 @@ def main():
         print("STDERR:", stderr)
     print(f"Exit Code: {proc.returncode}")
 
-    # 8. Show private key with wrong password
     print("\n\n### 8. SHOW PRIVATE KEY WITH WRONG PASSWORD (Should Fail) ###")
     cmd = f"python run_wallet.py --name {DEMO_DB} show-priv alice"
     print(f"COMMAND: {cmd}")
@@ -157,19 +136,15 @@ def main():
         print("STDERR:", stderr)
     print(f"Exit Code: {proc.returncode}")
 
-    # 9. Delete an account
     print("\n\n### 9. DELETE ACCOUNT (charlie) ###")
     run_wallet_command(f"--name {DEMO_DB} delete charlie")
 
-    # 10. List accounts after deletion
     print("\n\n### 10. LIST ACCOUNTS AFTER DELETION ###")
     run_wallet_command(f"--name {DEMO_DB} list")
 
-    # 11. Try operation on non-existent database
     print("\n\n### 11. TRY OPERATION ON NON-EXISTENT DATABASE (Should Fail) ###")
     run_wallet_command("--name nonexistent_db list")
 
-    # Summary
     print("\n\n" + "#" * 70)
     print("# DEMO COMPLETE")
     print("#" * 70)
