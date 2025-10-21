@@ -54,7 +54,18 @@ System składa się z dwóch głównych komponentów:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+```
+
+### Instalacja zależności
+
+```bash
 pip install -r requirements.txt
+```
+
+### Wyczyszczenie baz danych
+
+```bash
+rm -r db/*
 ```
 
 ---
@@ -184,12 +195,4 @@ python wallet/demo_wallet.py
 trudności problemu logarytmu dyskretnego na krzywych eliptycznych (ECDLP).
 Serializacja prywatnego klcuza PEM
 
----
-
-## Uwagi techniczne
-
-Dodanie poźniejsze wezła do istniejącego już nie aktualizuje listy peersów dodawanego wezła.
-Podczas dodawnia nowego wezła dodawana jest tez lista jego węzłów.W przyszłosci rozważyć zapytanie też wezłow z tej
-listy. Tym samym zwiekszac rozpoznianie sieci.
- 
 ---
