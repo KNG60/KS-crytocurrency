@@ -1,5 +1,3 @@
-"""Command handlers for wallet operations"""
-
 from getpass import getpass
 
 from .crypto import decrypt_private_key, export_private_key_pem
@@ -11,7 +9,6 @@ from .storage import (
 
 
 def show_private_key(label: str, db_name=DEFAULT_DB_NAME):
-    """Shows decrypted private key PEM after password prompt"""
     pem_blob = get_private_key_pem(label, db_name)
     if pem_blob is None:
         return False
@@ -30,7 +27,6 @@ def show_private_key(label: str, db_name=DEFAULT_DB_NAME):
 
 
 def show_account_details(label: str, db_name=DEFAULT_DB_NAME):
-    """Shows detailed information for a specific account"""
     account = get_account_details(label, db_name)
     if account:
         print(f"\n=== ACCOUNT DETAILS: {account['label']} ===")

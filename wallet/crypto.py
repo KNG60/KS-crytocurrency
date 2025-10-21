@@ -1,14 +1,9 @@
-"""Crypto operations for wallet"""
-
-from getpass import getpass
-
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 
-def gen_key_pair(password: str)-> tuple[bytes, str]:
-    priv = ec.generate_private_key(ec.SECP256K1(), default_backend())
+def gen_key_pair(password: str) -> tuple[bytes, str]:
+    priv = ec.generate_private_key(ec.SECP256K1())
     pub = priv.public_key()
     pub_bytes = pub.public_bytes(
         encoding=serialization.Encoding.X962,
@@ -25,12 +20,10 @@ def gen_key_pair(password: str)-> tuple[bytes, str]:
 
 
 def decrypt_private_key(pem_blob: bytes, password: str):
-    """Decrypts and returns a private key from encrypted PEM blob"""
     try:
         private_key = serialization.load_pem_private_key(
             pem_blob,
             password=password.encode('utf-8'),
-            backend=default_backend()
         )
         return private_key
     except Exception as e:
@@ -38,7 +31,6 @@ def decrypt_private_key(pem_blob: bytes, password: str):
 
 
 def export_private_key_pem(private_key) -> str:
-    """Exports private key to unencrypted PEM format"""
     priv_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
