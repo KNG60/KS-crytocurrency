@@ -12,9 +12,7 @@ System składa się z dwóch głównych komponentów:
 
 ### **Etap 1: Sieć i bezpieczny portfel**
 
-- [ ] **Wallet:** Generowanie i przechowywanie pary kluczy kryptograficznych
-- [ ] **Wallet:** Podpisywanie danych (transakcji) przy użyciu klucza prywatnego
-- [ ] **Wallet:** Zapisywanie i wczytywanie portfela z pliku
+- [x] **Wallet:** Generowanie i przechowywanie pary kluczy kryptograficznych
 - [x] **Node:** Możliwość komunikacji z innymi węzłami w sieci
 - [x] **Node:** Rejestracja i przechowywanie informacji o innych węzłach w sieci
 
@@ -58,7 +56,9 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
 ---
+
 ### Uruchomienie węzłów
 
 ```bash
@@ -102,38 +102,45 @@ curl -X POST http://127.0.0.1:5000/peers \
 Portfel umożliwia zarządzanie kontami kryptowalutowymi z kluczami ECDSA secp256k1.
 
 ### Tworzenie portfela
+
 ```bash
 python run_wallet.py --name crypto_bro_wallet init
 ```
 
 ### Dodanie konta
+
 ```bash
 python run_wallet.py --name crypto_bro_wallet add Bill_Gates
 # Zostaniesz poproszony o hasło do zaszyfrowania klucza prywatnego
 ```
 
 #### Lista wszystkich kont
+
 ```bash
 python run_wallet.py --name crypto_bro_wallet list
 ```
 
 #### Szczegóły konta
+
 ```bash
 python run_wallet.py --name crypto_bro_wallet show Bill_Gates
 ```
 
 #### Wyświetlenie klucza prywatnego
+
 ```bash
 python run_wallet.py --name crypto_bro_wallet show-priv Bill_Gates
 # Wymaga podania hasła do odszyfrowania
 ```
 
 #### Usunięcie konta
+
 ```bash
 python run_wallet.py --name crypto_bro_wallet delete Bill_Gates
 ```
 
 #### Pomoc
+
 ```bash
 python run_wallet.py --help
 ```
@@ -163,12 +170,14 @@ python run_wallet.py --name demo delete Elon_Musk
 ```
 
 ### Demo
+
 ```bash
 # Uruchom kompletne demo pokazujące wszystkie funkcje
 python wallet/demo_wallet.py
 ```
 
 ### Uwagi
+
 - Klucze prywatne są szyfrowane hasłem
 - Format kluczy: ECDSA secp256k1 (bitcoin), eksport PEM (PKCS#8)
 
@@ -178,7 +187,9 @@ Serializacja prywatnego klcuza PEM
 ---
 
 ## Uwagi techniczne
+
 Dodanie poźniejsze wezła do istniejącego już nie aktualizuje listy peersów dodawanego wezła.
-Podczas dodawnia nowego wezła dodawana jest tez lista jego węzłów.W przyszłosci rozważyć zapytanie też wezłow z tej listy. Tym samym zwiekszac rozpoznianie sieci. 
+Podczas dodawnia nowego wezła dodawana jest tez lista jego węzłów.W przyszłosci rozważyć zapytanie też wezłow z tej
+listy. Tym samym zwiekszac rozpoznianie sieci.
  
 ---
