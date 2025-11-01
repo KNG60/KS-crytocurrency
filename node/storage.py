@@ -1,5 +1,6 @@
+import json
 import sqlite3
-from typing import List, Dict, Tuple
+from typing import Dict, List, Tuple
 
 
 class PeerStorage:
@@ -50,3 +51,87 @@ class PeerStorage:
             cur = conn.execute('SELECT COUNT(1) FROM peers')
             row = cur.fetchone()
             return int(row[0])
+
+class ChainStorage:
+    def __init__(self, db_path: str):
+        self.db_path = db_path
+        self._init_db()
+
+    def _init_db(self):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                '''
+                CREATE TABLE IF NOT EXISTS blocks (
+                    height INTEGER PRIMARY KEY,
+                    prev_hash TEXT NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    txs_json TEXT NOT NULL,
+                    nonce INTEGER NOT NULL,
+                    difficulty INTEGER NOT NULL,
+                    miner TEXT NOT NULL,
+                    hash TEXT NOT NULL
+                )
+                '''
+            )
+            conn.commit()
+
+    def save_block(self, block: Dict):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                '''
+                INSERT OR IGNORE INTO blocks (height, prev_hash, timestamp, txs_json, nonce, difficulty, miner, hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''',
+                (
+                    int(block["height"]),
+                    str(block["prev_hash"]),
+                    int(block["timestamp"]),
+                    json.dumps(block.get("txs") or []),
+                    int(block["nonce"]),
+                    int(block["difficulty"]),
+                    str(block.get("miner", "")),
+                    str(block["hash"]),
+                ),
+            )
+            conn.commit()
+
+    def load_chain(self) -> List[Dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.execute(
+                'SELECT height, prev_hash, timestamp, txs_json, nonce, difficulty, miner, hash FROM blocks ORDER BY height ASC'
+            )
+            rows = cur.fetchall()
+        chain: List[Dict] = []
+        for r in rows:
+            chain.append(
+                {
+                    "height": int(r[0]),
+                    "prev_hash": r[1],
+                    "timestamp": int(r[2]),
+                    "txs": json.loads(r[3]),
+                    "nonce": int(r[4]),
+                    "difficulty": int(r[5]),
+                    "miner": r[6],
+                    "hash": r[7],
+                }
+            )
+        return chain
+
+    def get_last_block(self) -> Dict | None:
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.execute(
+                'SELECT height, prev_hash, timestamp, txs_json, nonce, difficulty, miner, hash FROM blocks ORDER BY height DESC LIMIT 1'
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        return {
+            "height": int(row[0]),
+            "prev_hash": row[1],
+            "timestamp": int(row[2]),
+            "txs": json.loads(row[3]),
+            "nonce": int(row[4]),
+            "difficulty": int(row[5]),
+            "miner": row[6],
+            "hash": row[7],
+        }

@@ -3,11 +3,12 @@ import random
 from threading import Thread
 from typing import Set, Tuple
 
-from flask import Flask, request, jsonify, Response
+from flask import Flask, Response, jsonify, request
 
+from node.blockchain import Block, Blockchain
 from node.graph import NetworkGraphManager
 from node.network import NetworkClient
-from node.storage import PeerStorage
+from node.storage import ChainStorage, PeerStorage
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ MAX_BOOTSTRAP_PEERS = 3
 
 
 class NodeServer:
-    def __init__(self, host: str, port: int, db_path: str, seed_peers: list):
+    def __init__(self, host: str, port: int, db_path: str, seed_peers: list, *, chain_db_path: str | None = None, role: str = "full", difficulty: int = 4):
         self.host = host
         self.port = port
         self.storage = PeerStorage(db_path)
@@ -25,6 +26,18 @@ class NodeServer:
         self.graph_manager = NetworkGraphManager(host, port, self.storage, self.network)
         self.app = Flask(__name__, static_folder='../static', static_url_path='/static')
         self._setup_routes()
+        self.role = role
+        self.blockchain = Blockchain(difficulty)
+        self.chain_storage = ChainStorage(chain_db_path or db_path)
+        self._init_chain()
+        
+
+    def _init_chain(self):
+        last = self.chain_storage.get_last_block()
+        if last is None:
+            genesis = self.blockchain.create_genesis()
+            self.chain_storage.save_block(genesis.to_dict())
+            logger.info(f"Genesis created: h=0 hash={genesis.hash[:16]}...")
 
     def is_self_peer(self, peer_host: str, peer_port: int) -> bool:
         return peer_host == self.host and peer_port == self.port
@@ -85,6 +98,50 @@ class NodeServer:
 
             return jsonify({"host": peer_host, "port": peer_port}), 201
 
+        @self.app.route('/blocks', methods=['GET'])
+        def get_blocks():
+            chain = self.chain_storage.load_chain()
+            return jsonify(chain), 200
+
+        @self.app.route('/blocks', methods=['POST'])
+        def receive_block():
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "missing block body"}), 400
+            try:
+                incoming = Block.from_dict(data)
+            except Exception as e:
+                return jsonify({"error": f"malformed block: {e}"}), 400
+
+            last = self.chain_storage.get_last_block()
+            prev = Block.from_dict(last) if last else None
+
+            if not self.blockchain.validate_block(incoming, prev):
+                return jsonify({"error": "invalid block"}), 400
+
+            self.chain_storage.save_block(incoming.to_dict())
+
+            peers = self.storage.get_all_peers()
+            self.network.broadcast_block(peers, incoming.to_dict())
+            return jsonify({"status": "accepted", "height": incoming.height}), 201
+
+        @self.app.route('/mine', methods=['POST'])
+        def mine():
+            if self.role != "miner":
+                return jsonify({"error": "node is not a miner"}), 403
+
+            last_d = self.chain_storage.get_last_block()
+            prev = Block.from_dict(last_d) if last_d else self.blockchain.create_genesis()
+
+            miner_id = f"{self.host}:{self.port}"
+            new_block = self.blockchain.mine_next_block(prev, miner_id, txs=[])
+            self.chain_storage.save_block(new_block.to_dict())
+
+            peers = self.storage.get_all_peers()
+            self.network.broadcast_block(peers, new_block.to_dict())
+
+            return jsonify({"status": "mined", "block": new_block.to_dict()}), 200
+
     def bootstrap(self):
         logger.info(f"Bootstrapping node with {len(self.seed_peers)} seed peers")
         candidates: Set[Tuple[str, int]] = set()
@@ -123,5 +180,5 @@ class NodeServer:
         if self.seed_peers:
             Thread(target=self.bootstrap, daemon=True).start()
 
-        logger.info(f"Starting node on {self.host}:{self.port}")
+        logger.info(f"Starting node on {self.host}:{self.port} role={self.role}")
         self.app.run(host=self.host, port=self.port)

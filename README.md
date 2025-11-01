@@ -37,7 +37,7 @@ rm -r db/*
 
 - ### [Wallet](./wallet/README.md)
 
-- ### [Demo ](./demo/README.md)
+- ### [Demo](./demo/README.md)
 
 ---
 

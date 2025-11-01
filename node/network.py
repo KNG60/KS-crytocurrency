@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 import requests
 
@@ -50,3 +50,23 @@ class NetworkClient:
         except requests.ConnectionError:
             logger.warning(f"Peer {peer_host}:{peer_port} is unreachable")
             return False
+
+    def submit_block_to_peer(self, peer_host: str, peer_port: int, block: Dict) -> bool:
+        url = f"http://{peer_host}:{peer_port}/blocks"
+        try:
+            r = requests.post(url, json=block, timeout=self.timeout)
+            if r.status_code in (200, 201):
+                logger.info(f"Submitted block h={block.get('height')} to {peer_host}:{peer_port}")
+                return True
+            logger.warning(f"Peer {peer_host}:{peer_port} rejected block: {r.status_code} {r.text}")
+            return False
+        except requests.ConnectionError:
+            logger.warning(f"Peer {peer_host}:{peer_port} is unreachable for block submit")
+            return False
+
+    def broadcast_block(self, peers: List[Dict], block: Dict):
+        ok = 0
+        for p in peers:
+            if self.submit_block_to_peer(p['host'], int(p['port']), block):
+                ok += 1
+        logger.info(f"Broadcasted block h={block.get('height')} to {ok}/{len(peers)} peers")
