@@ -29,8 +29,7 @@ def main():
     parser.add_argument('--port', type=int, default=5000, help='Port to bind to')
     parser.add_argument('--seeds', type=str, default='',
                         help='Comma-separated seed peers (e.g., 127.0.0.1:5000,127.0.0.1:5001)')
-    parser.add_argument('--role', type=str, choices=['full', 'miner'], default='full', help='Node role')
-    parser.add_argument('--difficulty', type=int, default=4, help='PoW difficulty (leading hex zeros)')
+    parser.add_argument('--role', type=str, choices=['normal', 'miner'], default='normal', help='"normal" for regular node, "miner" for mining node')
 
     args = parser.parse_args()
 
@@ -47,8 +46,7 @@ def main():
         db_path=os.path.join(db_dir, db_filename),
         seed_peers=seed_peers,
         chain_db_path=chain_db_filename,
-        role=args.role,
-        difficulty=args.difficulty
+        role=args.role
     )
 
     server.run()

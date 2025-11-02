@@ -8,53 +8,47 @@
 
 ### **Etap 2: Prosty łańcuch bloków**
 
-- [ ] **Node:** Tworzenie bloków z listą transakcji i powiązaniem do poprzedniego bloku
-- [ ] **Node:** Utworzenie pierwszego bloku (bloku genezy)
-- [ ] **Node:** Generowanie haszy bloków w celu zapewnienia integralności
-- [ ] **Node:** Sprawdzanie poprawności i spójności łańcucha bloków
-- [ ] **Node:** Rozgłaszanie nowych bloków do innych węzłów i odbieranie ich od sieci
+- [ ] **Node:** Tworzenie bloków z listą transakcji i powiązaniem do poprzedniego bloku - <span style="color:red">listy transakcji pojawią sie dopiero na KM3?</span>
+- [x] **Node:** Utworzenie pierwszego bloku (bloku genezy)
+- [x] **Node:** Generowanie haszy bloków w celu zapewnienia integralności
+- [x] **Node:** Sprawdzanie poprawności i spójności łańcucha bloków
+- [x] **Node:** Rozgłaszanie nowych bloków do innych węzłów i odbieranie ich od sieci
 
 
 ---
 
-W tym etapie dodano:
-- Struktury `node.blockchain.Block` i `node.blockchain.Blockchain` (Proof of Work, walidacja, blok genezy).
-- Przechowywanie bloków w SQLite: `node.storage.ChainStorage`.
+**Co nowego:**
+- Trudność PoW w projekcie jest stała i ustawiona w kodzie na 5 (liczba zer w hexach). 
+- Węzeł górniczy po wykopaniu bloku automatycznie rozgłasza go do znanych peerów `broadcast_block()`.
+- W momencie uruchamiania wezła sprawdza on kto ma najdłuższy blockchain `_init_chain()`, (z własej bazy i zapisanych peersów)
+- walidacja  łańcucha sprawdza `validate_chain()`:
+	- poprzedni hash
+	- długość blockchain "height"
+	- wynik funkcji hashującej
+	- Wynik i liczbę zer rozwiązania wezględem difficulty
+	- Nie sprawdza skumulowanej pracy.
+	- Jesli nowy blockchain jest dłuższy adaptuje go
+	- W przypadku tej samej długości blockchian nie wykonuje forku tylko zostaje przy swoim!
+- Blok genezy jest generowany gdy nowy wezeł nie połączy się z istniejacą siecią. 
+- Spora część rozwiązań pokrywa wymagania etapu 4. Hura!
 - Endpointy HTTP:
 	- `GET /blocks` – zwraca cały łańcuch,
 	- `POST /blocks` – przyjmuje nowy blok i waliduje go,
 	- `POST /mine` – (tylko rola miner) wydobywa nowy blok.
-- Nowe parametry uruchomienia: `--role full|miner`, `--difficulty <int>`.
+- Nowe parametr : `--role`
+	- ` normal` bez zmian, zwykły wezeł.
+	- `miner` może wykopywać bloki.
 
-Uruchomienie węzłów:
-
-```bash
-# Pełny węzeł
-py run_node.py --port 5000 --role full
-
-# Węzeł górnik z trudnością 4 (4 zera hex na początku hash)
-py run_node.py --port 5001 --role miner --difficulty 4 --seeds 127.0.0.1:5000
-```
-
-Kopalnia i podgląd:
-
-```bash
-# Ręczne wydobycie bloku na minerze
-curl -X POST http://127.0.0.1:5001/mine
-
-# Podgląd łańcucha na pełnym węźle
-curl http://127.0.0.1:5000/blocks
-```
-
-#### Proof of Work (PoW)
-
-Użyty algorytm: prosty SHA-256 na nagłówku bloku z licznikiem `nonce`.
-Warunek: hash w zapisie heksadecymalnym ma D wiodących zer (D = difficulty).
-
-Matematycznie: wymagamy, by $H(\text{header} \Vert \text{nonce}) < \text{Target}_D$.
-Prawdopodobieństwo trafienia: $16^{-D} = 2^{-4D}$, więc oczekiwana liczba prób: $16^{D} = 2^{4D}$.
-
-Dlaczego: deterministyczny, prosty w implementacji i weryfikacji, parametryzowalny trudnością, wystarczający edukacyjnie dla tego etapu.
+**Co omówić, dodać :**
+- Rozwinąć o organiczne/czasowe zwiększanie difficuty i synchronizaje miedzy węzłami.
+- Czy walidacja blockchaina powinna brać po uwagę skumulowaną pracy jako kryterium.
+- Ulepszyć sposób zlecania wykonykopywania bloków na ciągły.
+- Przygotować test przedstawiający ciągłą symulację.
+- Dodać do Network Topology info o węzłach :
+	- Role (mp. zmienić kopalnie na trójkąty)
+	- Aktualną liczbę bloków w blockchainie 
+	- Status pracy koparek
+- Namierzyć potencjalne nieprawidłowości.
 
 
 ### **Etap 3: Transakcje i konsensus**

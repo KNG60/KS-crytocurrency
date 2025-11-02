@@ -70,3 +70,19 @@ class NetworkClient:
             if self.submit_block_to_peer(p['host'], int(p['port']), block):
                 ok += 1
         logger.info(f"Broadcasted block h={block.get('height')} to {ok}/{len(peers)} peers")
+
+    def fetch_chain_from_peer(self, peer_host: str, peer_port: int) -> Optional[List[Dict]]:
+        url = f"http://{peer_host}:{peer_port}/blocks"
+        try:
+            r = requests.get(url, timeout=self.timeout)
+            if r.status_code != 200:
+                logger.warning(f"Failed to fetch chain from {peer_host}:{peer_port}: {r.status_code}")
+                return None
+            data = r.json()
+            if not isinstance(data, list):
+                logger.warning(f"Invalid /blocks response format from {peer_host}:{peer_port}")
+                return None
+            return data
+        except requests.ConnectionError:
+            logger.warning(f"Peer {peer_host}:{peer_port} is unreachable for chain fetch")
+            return None

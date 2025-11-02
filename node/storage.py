@@ -95,6 +95,34 @@ class ChainStorage:
             )
             conn.commit()
 
+    def replace_chain(self, chain: List[Dict]):
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.cursor()
+            try:
+                cur.execute('BEGIN')
+                cur.execute('DELETE FROM blocks')
+                for block in chain:
+                    cur.execute(
+                        '''
+                        INSERT INTO blocks (height, prev_hash, timestamp, txs_json, nonce, difficulty, miner, hash)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''',
+                        (
+                            int(block["height"]),
+                            str(block["prev_hash"]),
+                            int(block["timestamp"]),
+                            json.dumps(block.get("txs") or []),
+                            int(block["nonce"]),
+                            int(block["difficulty"]),
+                            str(block.get("miner", "")),
+                            str(block["hash"]),
+                        ),
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
     def load_chain(self) -> List[Dict]:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.execute(

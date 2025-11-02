@@ -135,7 +135,7 @@ class Blockchain:
             "timestamp": int(time.time()),
             "txs": [],
             "nonce": 0,
-            "difficulty": 0,
+            "difficulty": self.difficulty,
             "miner": "genesis",
         }
         h = Block.compute_hash(header)
@@ -145,7 +145,19 @@ class Blockchain:
             timestamp=header["timestamp"],
             txs=[],
             nonce=0,
-            difficulty=0,
+            difficulty=self.difficulty,
             miner="genesis",
             block_hash=h,
         )
+
+    def validate_chain(self, chain: List[Dict]) -> bool:
+        prev: Optional[Block] = None
+        for b in chain:
+            try:
+                blk = Block.from_dict(b) if not isinstance(b, Block) else b
+            except Exception:
+                return False
+            if not self.validate_block(blk, prev):
+                return False
+            prev = blk
+        return True

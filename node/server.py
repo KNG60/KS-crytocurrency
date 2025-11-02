@@ -14,10 +14,11 @@ logger = logging.getLogger(__name__)
 
 MAX_PEERS = 5
 MAX_BOOTSTRAP_PEERS = 3
+DIFFICULTY = 5
 
 
 class NodeServer:
-    def __init__(self, host: str, port: int, db_path: str, seed_peers: list, *, chain_db_path: str | None = None, role: str = "full", difficulty: int = 4):
+    def __init__(self, host: str, port: int, db_path: str, seed_peers: list, *, chain_db_path: str | None = None, role: str = "normal"):
         self.host = host
         self.port = port
         self.storage = PeerStorage(db_path)
@@ -27,17 +28,75 @@ class NodeServer:
         self.app = Flask(__name__, static_folder='../static', static_url_path='/static')
         self._setup_routes()
         self.role = role
-        self.blockchain = Blockchain(difficulty)
+        self.blockchain = Blockchain(DIFFICULTY)
         self.chain_storage = ChainStorage(chain_db_path or db_path)
         self._init_chain()
         
 
     def _init_chain(self):
-        last = self.chain_storage.get_last_block()
-        if last is None:
+        local_chain = self.chain_storage.load_chain()
+        local_len = len(local_chain)
+
+        best_chain = None
+        if self.seed_peers:
+            for seed in self.seed_peers:
+                host, port = seed.get('host'), int(seed.get('port'))
+                chain = self.network.fetch_chain_from_peer(host, port)
+                if chain and (best_chain is None or len(chain) > len(best_chain)):
+                    best_chain = chain
+
+        adopted = False
+        if best_chain and len(best_chain) > local_len:
+            if self.blockchain.validate_chain(best_chain):
+                self.chain_storage.replace_chain(best_chain)
+                logger.info(f"Adopted longer chain from seed: {len(best_chain)} blocks (local had {local_len})")
+                adopted = True
+
+        if not adopted and local_len == 0:
             genesis = self.blockchain.create_genesis()
             self.chain_storage.save_block(genesis.to_dict())
             logger.info(f"Genesis created: h=0 hash={genesis.hash[:16]}...")
+
+    def _try_adopt_longer_chain(self, min_target_len: int | None = None) -> tuple[bool, int]:
+        local_len = len(self.chain_storage.load_chain())
+        peers_set: set[tuple[str, int]] = set()
+        for s in self.seed_peers or []:
+            try:
+                peers_set.add((s.get('host'), int(s.get('port'))))
+            except Exception:
+                pass
+        for p in self.storage.get_all_peers():
+            try:
+                host = p.get('host')
+                port_val = p.get('port')
+                if host and port_val is not None:
+                    peers_set.add((host, int(port_val)))
+            except Exception:
+                pass
+
+        best_chain = None
+        for host, port in peers_set:
+            chain = self.network.fetch_chain_from_peer(host, port)
+            if not chain:
+                continue
+            if best_chain is None or len(chain) > len(best_chain):
+                best_chain = chain
+
+        if not best_chain:
+            return (False, local_len)
+
+        target_len = len(best_chain)
+        if min_target_len is not None and target_len < min_target_len:
+            return (False, local_len)
+        if target_len <= local_len:
+            return (False, local_len)
+
+        if not self.blockchain.validate_chain(best_chain):
+            return (False, local_len)
+
+        self.chain_storage.replace_chain(best_chain)
+        logger.info(f"Runtime adoption: replaced local chain ({local_len}) with longer chain ({target_len})")
+        return (True, target_len)
 
     def is_self_peer(self, peer_host: str, peer_port: int) -> bool:
         return peer_host == self.host and peer_port == self.port
@@ -117,6 +176,12 @@ class NodeServer:
             prev = Block.from_dict(last) if last else None
 
             if not self.blockchain.validate_block(incoming, prev):
+                local_height = prev.height if prev else -1
+                should_try_adopt = incoming.height >= local_height + 1
+                if should_try_adopt:
+                    adopted, new_len = self._try_adopt_longer_chain(min_target_len=incoming.height + 1)
+                    if adopted:
+                        return jsonify({"status": "reorganized", "height": new_len - 1}), 201
                 return jsonify({"error": "invalid block"}), 400
 
             self.chain_storage.save_block(incoming.to_dict())
