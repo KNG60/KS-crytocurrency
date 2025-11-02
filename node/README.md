@@ -29,13 +29,6 @@ curl http://127.0.0.1:5000/peers
 curl http://127.0.0.1:5000/ping
 ```
 
-### Dodanie peera
-
-```bash
-curl -X POST http://127.0.0.1:5000/peers \
-  -H "Content-Type: application/json" \
-  -d '{"host": "127.0.0.1", "port": 5001}'
-```
 
 ### Odczyt łańcucha bloków
 
@@ -46,5 +39,5 @@ curl http://127.0.0.1:5000/blocks
 ### Zlecenie wykopania bloku
 
 ```bash
-curl -X POST http://127.0.0.1:5001/mine
+curl -X POST http://127.0.0.1:5002/mine
 ```
