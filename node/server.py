@@ -179,6 +179,8 @@ class NodeServer:
                 local_height = prev.height if prev else -1
                 should_try_adopt = incoming.height >= local_height + 1
                 if should_try_adopt:
+                    #TODO check if block is still git 
+                    #if blockchain longer then orginal, ask for full chain to verify with last common block.
                     adopted, new_len = self._try_adopt_longer_chain(min_target_len=incoming.height + 1)
                     if adopted:
                         return jsonify({"status": "reorganized", "height": new_len - 1}), 201

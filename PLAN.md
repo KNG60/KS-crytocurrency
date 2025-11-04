@@ -49,6 +49,7 @@
 	- Aktualną liczbę bloków w blockchainie 
 	- Status pracy koparek
 - Namierzyć potencjalne nieprawidłowości.
+- Dodac walidacje w przypadku dłuższego łańcucha
 
 
 ### **Etap 3: Transakcje i konsensus**
