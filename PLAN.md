@@ -49,7 +49,13 @@
 	- Aktualną liczbę bloków w blockchainie 
 	- Status pracy koparek
 - Namierzyć potencjalne nieprawidłowości.
-- Dodac walidacje w przypadku dłuższego łańcucha
+- [x] Dodac walidacje w przypadku dłuższego łańcucha:
+
+	[code_in_repo](node/server.py#L60)
+  ```python
+  if not self.blockchain.validate_chain(best_chain):
+      return (False, local_len)
+  ```
 
 
 ### **Etap 3: Transakcje i konsensus**
