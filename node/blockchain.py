@@ -1,30 +1,26 @@
-import hashlib
-import json
 import time
 from typing import Dict, List, Optional
 
-
-def _hash_dict(data: Dict) -> str:
-    payload = json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+from .transactions import Transaction, serialize_transactions, deserialize_transactions
+from .utils import hash_dict
 
 
 class Block:
     def __init__(
-        self,
-        height: int,
-        prev_hash: str,
-        timestamp: int,
-        txs: List[Dict],
-        nonce: int,
-        difficulty: int,
-        miner: str,
-        block_hash: str,
+            self,
+            height: int,
+            prev_hash: str,
+            timestamp: int,
+            txs: List[Transaction],
+            nonce: int,
+            difficulty: int,
+            miner: str,
+            block_hash: str,
     ):
         self.height = height
         self.prev_hash = prev_hash
         self.timestamp = timestamp
-        self.txs = txs or []
+        self.txs = txs
         self.nonce = nonce
         self.difficulty = difficulty
         self.miner = miner
@@ -35,27 +31,16 @@ class Block:
             "height": self.height,
             "prev_hash": self.prev_hash,
             "timestamp": self.timestamp,
-            "txs": self.txs,
+            "txs": serialize_transactions(self.txs),
             "nonce": self.nonce,
             "difficulty": self.difficulty,
             "miner": self.miner,
         }
-
-    @staticmethod
-    def compute_hash(header: Dict) -> str:
-        return _hash_dict(header)
 
     def to_dict(self) -> Dict:
-        return {
-            "height": self.height,
-            "prev_hash": self.prev_hash,
-            "timestamp": self.timestamp,
-            "txs": self.txs,
-            "nonce": self.nonce,
-            "difficulty": self.difficulty,
-            "miner": self.miner,
-            "hash": self.hash,
-        }
+        data = self.header()
+        data["hash"] = self.hash
+        return data
 
     @classmethod
     def from_dict(cls, d: Dict) -> "Block":
@@ -63,17 +48,19 @@ class Block:
             height=int(d["height"]),
             prev_hash=str(d["prev_hash"]),
             timestamp=int(d["timestamp"]),
-            txs=list(d.get("txs") or []),
+            txs=deserialize_transactions(d["txs"]),
             nonce=int(d["nonce"]),
             difficulty=int(d["difficulty"]),
-            miner=str(d.get("miner", "")),
+            miner=str(d["miner"]),
             block_hash=str(d["hash"]),
         )
 
 
 class Blockchain:
     def __init__(self, difficulty: int):
-        self.difficulty = max(0, int(difficulty))
+        if difficulty <= 0:
+            raise ValueError("Difficulty must be positive")
+        self.difficulty = difficulty
 
     @staticmethod
     def is_pow_valid(h: str, difficulty: int) -> bool:
@@ -81,7 +68,7 @@ class Blockchain:
 
     def validate_block(self, block: Block, prev: Optional[Block]) -> bool:
         if block.height == 0:
-            expected = Block.compute_hash(block.header())
+            expected = hash_dict(block.header())
             return block.prev_hash == "0" * 64 and block.hash == expected
 
         if prev is None:
@@ -92,7 +79,7 @@ class Blockchain:
         if block.prev_hash != prev.hash:
             return False
 
-        expected_hash = Block.compute_hash(block.header())
+        expected_hash = hash_dict(block.header())
         if block.hash != expected_hash:
             return False
 
@@ -101,62 +88,43 @@ class Blockchain:
 
         return True
 
-    def mine_next_block(self, prev: Block, miner_id: str, txs: Optional[List[Dict]] = None) -> Block:
+    def mine_next_block(self, prev: Block, miner_id: str, txs: List[Transaction]) -> Block:
         height = prev.height + 1
         nonce = 0
         while True:
-            header = {
+            block_data = {
                 "height": height,
                 "prev_hash": prev.hash,
                 "timestamp": int(time.time()),
-                "txs": txs or [],
+                "txs": serialize_transactions(txs),
                 "nonce": nonce,
                 "difficulty": self.difficulty,
                 "miner": miner_id,
             }
-            h = Block.compute_hash(header)
+            h = hash_dict(block_data)
+            block_data["hash"] = h
             if self.is_pow_valid(h, self.difficulty):
-                return Block(
-                    height=height,
-                    prev_hash=prev.hash,
-                    timestamp=header["timestamp"],
-                    txs=header["txs"],
-                    nonce=nonce,
-                    difficulty=self.difficulty,
-                    miner=miner_id,
-                    block_hash=h,
-                )
+                return Block.from_dict(block_data)
             nonce += 1
 
     def create_genesis(self) -> Block:
-        header = {
+        block_data = {
             "height": 0,
             "prev_hash": "0" * 64,
-            "timestamp": int(time.time()),
+            "timestamp": 0,
             "txs": [],
             "nonce": 0,
             "difficulty": self.difficulty,
             "miner": "genesis",
         }
-        h = Block.compute_hash(header)
-        return Block(
-            height=0,
-            prev_hash=header["prev_hash"],
-            timestamp=header["timestamp"],
-            txs=[],
-            nonce=0,
-            difficulty=self.difficulty,
-            miner="genesis",
-            block_hash=h,
-        )
+        h = hash_dict(block_data)
+        block_data["hash"] = h
+        return Block.from_dict(block_data)
 
     def validate_chain(self, chain: List[Dict]) -> bool:
         prev: Optional[Block] = None
         for b in chain:
-            try:
-                blk = Block.from_dict(b) if not isinstance(b, Block) else b
-            except Exception:
-                return False
+            blk = Block.from_dict(b)
             if not self.validate_block(blk, prev):
                 return False
             prev = blk

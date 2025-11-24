@@ -23,12 +23,6 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Wyczyszczenie baz danych
-
-```bash
-rm -r db/*
-```
-
 ---
 
 ## Instrukcje:

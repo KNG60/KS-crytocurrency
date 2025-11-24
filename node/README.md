@@ -1,3 +1,9 @@
+## Wyczyszczenie baz danych
+
+```bash
+rm -r db/*
+```
+
 ## Uruchomienie węzłów
 
 ```bash
@@ -28,7 +34,6 @@ curl http://127.0.0.1:5000/peers
 ```bash
 curl http://127.0.0.1:5000/ping
 ```
-
 
 ### Odczyt łańcucha bloków
 

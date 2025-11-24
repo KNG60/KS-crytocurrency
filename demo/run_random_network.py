@@ -6,14 +6,18 @@ import sys
 import time
 from pathlib import Path
 
+import requests
+
 PARENT_DIR = Path(__file__).parent.parent
 
 HOST = "127.0.0.1"
 START_PORT = 5000
-MIN_NODES = 10
-MAX_NODES = 20
+MIN_NODES = 5
+MAX_NODES = 10
 MIN_SEEDS = 1
 MAX_SEEDS = 5
+MINER_PROBABILITY = 0.8
+MINE_OPERATIONS_COUNT = 5
 
 
 def kill_node_processes():
@@ -22,7 +26,7 @@ def kill_node_processes():
 
 
 def clean_databases():
-    db_dir = PARENT_DIR / "db"
+    db_dir = PARENT_DIR / "node" / "db"
     if db_dir.exists():
         print(f"Cleaning database directory: {db_dir}")
         shutil.rmtree(db_dir)
@@ -34,6 +38,7 @@ class NetworkManager:
     def __init__(self):
         self.processes = []
         self.node_ports = []
+        self.miner_ports = []
 
     def cleanup(self, signum=None, frame=None):
         print("\n\nShutting down all nodes...")
@@ -43,19 +48,21 @@ class NetworkManager:
         print("All nodes stopped.")
         sys.exit(0)
 
-    def start_node(self, port, seed_peers=None):
+    def start_node(self, port, seed_peers=None, is_miner=False):
         cmd = [
             sys.executable,
             "run_node.py",
             "--host", HOST,
-            "--port", str(port)
+            "--port", str(port),
+            "--role", "miner" if is_miner else "normal"
         ]
 
         if seed_peers:
             seeds_str = ",".join([f"{HOST}:{p}" for p in seed_peers])
             cmd.extend(["--seeds", seeds_str])
 
-        print(f"Starting node on port {port}", end="")
+        role_label = "MINER" if is_miner else "normal"
+        print(f"Starting node on port {port} (role: {role_label})", end="")
         if seed_peers:
             print(f" with seeds: {seed_peers}")
         else:
@@ -72,7 +79,10 @@ class NetworkManager:
         self.processes.append(proc)
         self.node_ports.append(port)
 
-        time.sleep(0.5)
+        if is_miner:
+            self.miner_ports.append(port)
+
+        time.sleep(0.1)
 
         return proc
 
@@ -84,31 +94,77 @@ class NetworkManager:
         print("=" * 70)
         print(f"Number of nodes: {num_nodes}")
         print(f"Port range: {START_PORT} - {START_PORT + num_nodes - 1}")
+        print(f"Miner probability: {MINER_PROBABILITY * 100}%")
         print("=" * 70 + "\n")
 
         first_port = START_PORT
-        self.start_node(first_port)
+        is_first_miner = random.random() < MINER_PROBABILITY
+        self.start_node(first_port, is_miner=is_first_miner)
 
         for i in range(1, num_nodes):
             port = START_PORT + i
+            is_miner = random.random() < MINER_PROBABILITY
 
             num_seeds = random.randint(MIN_SEEDS, min(MAX_SEEDS, len(self.node_ports)))
             seed_peers = random.sample(self.node_ports, num_seeds)
 
-            self.start_node(port, seed_peers)
+            self.start_node(port, seed_peers, is_miner=is_miner)
 
         print("\n" + "=" * 70)
         print("NETWORK STARTED SUCCESSFULLY")
         print("=" * 70)
         print(f"\nAll {num_nodes} nodes are running.")
+        print(f"Miners: {len(self.miner_ports)} nodes")
+        print(f"Normal nodes: {num_nodes - len(self.miner_ports)} nodes")
+
+        if self.miner_ports:
+            print(f"\nMiner ports: {self.miner_ports}")
+
         print("\nAccess network visualization:")
         for port in self.node_ports[:3]:
             print(f"  http://localhost:{port}/static/network.html")
         if len(self.node_ports) > 3:
             print(f"  ... and {len(self.node_ports) - 3} more")
 
-        print("\nPress Ctrl+C to stop all nodes")
         print("=" * 70 + "\n")
+
+    def perform_mine_operations(self):
+        if not self.miner_ports:
+            print("\nNo miners available for mining operations.")
+            return
+
+        print("\n" + "=" * 70)
+        print("STARTING MINING OPERATIONS")
+        print("=" * 70)
+        print(f"Will perform {MINE_OPERATIONS_COUNT} mining operations")
+        print(f"Available miners: {len(self.miner_ports)}")
+        print("=" * 70 + "\n")
+
+        successful_mines = 0
+        failed_mines = 0
+
+        for i in range(MINE_OPERATIONS_COUNT):
+            miner_port = random.choice(self.miner_ports)
+
+            print(f"[{i + 1}/{MINE_OPERATIONS_COUNT}] Sending mine request to port {miner_port}...", end=" ")
+
+            try:
+                response = requests.post(
+                    f"http://{HOST}:{miner_port}/mine",
+                    timeout=10
+                )
+
+                if response.status_code == 200:
+                    print(f"✓ SUCCESS - Block mined: {response.json()}")
+                else:
+                    print(f"✗ FAILED - Status: {response.status_code}")
+
+            except requests.exceptions.Timeout:
+                print("✗ FAILED - Timeout")
+            except requests.exceptions.ConnectionError:
+                print("✗ FAILED - Connection error (miner might be down)")
+
+            time.sleep(1)
 
     def wait_forever(self):
         try:
@@ -140,6 +196,14 @@ def main():
 
     try:
         manager.create_random_network()
+
+        print("Waiting for network to stabilize...")
+        time.sleep(3)
+
+        manager.perform_mine_operations()
+
+        print("\nPress Ctrl+C to stop all nodes")
+
         manager.wait_forever()
     except Exception as e:
         print(f"\nError: {e}")

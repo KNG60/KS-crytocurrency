@@ -1,4 +1,5 @@
 import logging
+import os
 import random
 from threading import Thread
 from typing import Set, Tuple
@@ -18,10 +19,18 @@ DIFFICULTY = 5
 
 
 class NodeServer:
-    def __init__(self, host: str, port: int, db_path: str, seed_peers: list, *, chain_db_path: str | None = None, role: str = "normal"):
+    def __init__(self, host: str, port: int, seed_peers: list, *, role: str = "normal"):
         self.host = host
         self.port = port
-        self.storage = PeerStorage(db_path)
+
+        server_dir = os.path.dirname(os.path.abspath(__file__))
+        db_dir = os.path.join(server_dir, 'db')
+        os.makedirs(db_dir, exist_ok=True)
+
+        peers_db_path = os.path.join(db_dir, f'peers_{port}.db')
+        chain_db_path = os.path.join(db_dir, f'chain_{port}.db')
+
+        self.storage = PeerStorage(peers_db_path)
         self.network = NetworkClient()
         self.seed_peers = seed_peers
         self.graph_manager = NetworkGraphManager(host, port, self.storage, self.network)
@@ -29,9 +38,8 @@ class NodeServer:
         self._setup_routes()
         self.role = role
         self.blockchain = Blockchain(DIFFICULTY)
-        self.chain_storage = ChainStorage(chain_db_path or db_path)
+        self.chain_storage = ChainStorage(chain_db_path)
         self._init_chain()
-        
 
     def _init_chain(self):
         local_chain = self.chain_storage.load_chain()
@@ -179,8 +187,6 @@ class NodeServer:
                 local_height = prev.height if prev else -1
                 should_try_adopt = incoming.height >= local_height + 1
                 if should_try_adopt:
-                    #TODO check if block is still git 
-                    #if blockchain longer then orginal, ask for full chain to verify with last common block.
                     adopted, new_len = self._try_adopt_longer_chain(min_target_len=incoming.height + 1)
                     if adopted:
                         return jsonify({"status": "reorganized", "height": new_len - 1}), 201
@@ -207,7 +213,7 @@ class NodeServer:
             peers = self.storage.get_all_peers()
             self.network.broadcast_block(peers, new_block.to_dict())
 
-            return jsonify({"status": "mined", "block": new_block.to_dict()}), 200
+            return jsonify(new_block.to_dict()), 200
 
     def bootstrap(self):
         logger.info(f"Bootstrapping node with {len(self.seed_peers)} seed peers")
