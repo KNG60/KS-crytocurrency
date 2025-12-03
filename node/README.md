@@ -6,15 +6,25 @@ rm -r db/*
 
 ## Uruchomienie węzłów
 
+**Każdy węzeł wymaga klucza publicznego z portfela.**
+
+Utwórz konto w portfelu:
+
+```bash
+python ../run_wallet.py add alice
+```
+
+Uruchom węzeł używając label z portfela:
+
 ```bash
 # Węzeł startowy (bootstrap)
-python ../run_node.py
+python ../run_node.py --wallet-label alice
 
 # Węzeł dołączający się (z seedem)
-python ../run_node.py --port 5001 --role normal --seeds 127.0.0.1:5000
+python ../run_node.py --port 5001 --role normal --wallet-label bob --seeds 127.0.0.1:5000
 
-# Kolejny węzeł (koparka)
-python ../run_node.py --port 5002 --role miner --seeds 127.0.0.1:5000
+# Węzeł górniczy
+python ../run_node.py --port 5002 --role miner --wallet-label charlie --seeds 127.0.0.1:5000
 ```
 
 ### Pomoc

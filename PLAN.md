@@ -18,7 +18,7 @@
 - [x] **Wallet:** Tworzenie i podpisywanie transakcji między użytkownikami
 - [ ] **Node:** Gromadzenie oczekujących transakcji w sieci
 - [ ] **Node:** Mechanizm kopania bloków i ustalania konsensusu (Proof-of-Work)
-- [ ] **Node:** Dodawanie nagród dla górników (transakcje coinbase)
+- [x] **Node:** Dodawanie nagród dla górników (transakcje coinbase)
 - [ ] **Node:** Weryfikacja transakcji (poprawność podpisu, wystarczające saldo, ochrona przed podwójnym wydatkowaniem)
 - [ ] **Node:** Obliczanie sald użytkowników na podstawie historii transakcji
 

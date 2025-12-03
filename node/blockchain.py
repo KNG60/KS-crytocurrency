@@ -4,6 +4,8 @@ from typing import Dict, List, Optional
 from .transactions import Transaction, serialize_transactions, deserialize_transactions
 from .utils import hash_dict
 
+MINING_REWARD = 50.0
+
 
 class Block:
     def __init__(
@@ -56,6 +58,25 @@ class Block:
         )
 
 
+def validate_transactions(txs: List[Transaction], miner: str) -> bool:
+    if len(txs) == 0:
+        return True
+
+    first_tx = txs[0]
+    if not first_tx.is_coinbase():
+        return False
+    if first_tx.recipient != miner:
+        return False
+    if first_tx.amount != MINING_REWARD:
+        return False
+
+    for tx in txs[1:]:
+        if tx.is_coinbase():
+            return False
+
+    return True
+
+
 class Blockchain:
     def __init__(self, difficulty: int):
         if difficulty <= 0:
@@ -65,6 +86,16 @@ class Blockchain:
     @staticmethod
     def is_pow_valid(h: str, difficulty: int) -> bool:
         return h.startswith("0" * max(0, int(difficulty)))
+
+    @staticmethod
+    def create_coinbase_transaction(recipient: str, amount: float = MINING_REWARD) -> Transaction:
+        return Transaction(
+            sender=None,
+            recipient=recipient,
+            amount=amount,
+            timestamp=int(time.time()),
+            prev_txid=None
+        )
 
     def validate_block(self, block: Block, prev: Optional[Block]) -> bool:
         if block.height == 0:
@@ -86,9 +117,15 @@ class Blockchain:
         if not self.is_pow_valid(block.hash, block.difficulty):
             return False
 
+        if not validate_transactions(block.txs, block.miner):
+            return False
+
         return True
 
     def mine_next_block(self, prev: Block, miner_id: str, txs: List[Transaction]) -> Block:
+        coinbase = self.create_coinbase_transaction(miner_id)
+        all_txs = [coinbase] + txs
+
         height = prev.height + 1
         nonce = 0
         while True:
@@ -96,7 +133,7 @@ class Blockchain:
                 "height": height,
                 "prev_hash": prev.hash,
                 "timestamp": int(time.time()),
-                "txs": serialize_transactions(txs),
+                "txs": serialize_transactions(all_txs),
                 "nonce": nonce,
                 "difficulty": self.difficulty,
                 "miner": miner_id,

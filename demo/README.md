@@ -4,7 +4,7 @@
 
 Skrypt:
 
-- Tworzy losową liczbę węzłów (10-20)
+- Tworzy losową liczbę węzłów
 - Pierwszy węzeł jest węzłem bootstrapowym (bez seedów)
 - Każdy kolejny węzeł otrzymuje losową liczbę seedów (1-5) z już uruchomionych węzłów
 - Wszystkie węzły używają portów od 5000 wzwyż

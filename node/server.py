@@ -19,9 +19,10 @@ DIFFICULTY = 5
 
 
 class NodeServer:
-    def __init__(self, host: str, port: int, seed_peers: list, *, role: str = "normal"):
+    def __init__(self, host: str, port: int, seed_peers: list, *, role: str = "normal", public_key: str):
         self.host = host
         self.port = port
+        self.public_key = public_key
 
         server_dir = os.path.dirname(os.path.abspath(__file__))
         db_dir = os.path.join(server_dir, 'db')
@@ -206,8 +207,7 @@ class NodeServer:
             last_d = self.chain_storage.get_last_block()
             prev = Block.from_dict(last_d) if last_d else self.blockchain.create_genesis()
 
-            miner_id = f"{self.host}:{self.port}"
-            new_block = self.blockchain.mine_next_block(prev, miner_id, txs=[])
+            new_block = self.blockchain.mine_next_block(prev, self.public_key, txs=[])
             self.chain_storage.save_block(new_block.to_dict())
 
             peers = self.storage.get_all_peers()

@@ -4,14 +4,13 @@ from getpass import getpass
 from node.transactions import Transaction
 from .crypto import decrypt_private_key, export_private_key_pem, sign_tx
 from .storage import (
-    DEFAULT_DB_NAME,
     get_account_details,
     get_private_key_pem
 )
 
 
-def show_private_key(label: str, db_name=DEFAULT_DB_NAME):
-    pem_blob = get_private_key_pem(label, db_name)
+def show_private_key(label: str):
+    pem_blob = get_private_key_pem(label)
     if pem_blob is None:
         return False
 
@@ -28,8 +27,8 @@ def show_private_key(label: str, db_name=DEFAULT_DB_NAME):
         return False
 
 
-def show_account_details(label: str, db_name=DEFAULT_DB_NAME):
-    account = get_account_details(label, db_name)
+def show_account_details(label: str):
+    account = get_account_details(label)
     if account:
         print(f"\n=== ACCOUNT DETAILS: {account['label']} ===")
         print(f"ID: {account['id']}")
@@ -40,13 +39,13 @@ def show_account_details(label: str, db_name=DEFAULT_DB_NAME):
     return False
 
 
-def create_transaction(sender_label: str, recipient_label: str, amount: float, db_name=DEFAULT_DB_NAME):
-    sender_account = get_account_details(sender_label, db_name)
+def create_transaction(sender_label: str, recipient_label: str, amount: float):
+    sender_account = get_account_details(sender_label)
     if not sender_account:
         print(f"ERROR: Sender account '{sender_label}' not found")
         return None
 
-    recipient_account = get_account_details(recipient_label, db_name)
+    recipient_account = get_account_details(recipient_label)
     if not recipient_account:
         print(f"ERROR: Recipient account '{recipient_label}' not found")
         return None
@@ -71,7 +70,7 @@ def create_transaction(sender_label: str, recipient_label: str, amount: float, d
         prev_txid=None
     )
 
-    pem_blob = get_private_key_pem(sender_label, db_name)
+    pem_blob = get_private_key_pem(sender_label)
     if pem_blob is None:
         print(f"ERROR: Cannot retrieve private key for '{sender_label}'")
         return None

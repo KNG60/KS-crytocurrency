@@ -6,7 +6,7 @@ from .utils import hash_dict
 class Transaction:
     def __init__(
             self,
-            sender: str,
+            sender: Optional[str],
             recipient: str,
             amount: float,
             timestamp: int,
@@ -20,6 +20,9 @@ class Transaction:
         self.amount = amount
         self.prev_txid = prev_txid
         self.timestamp = timestamp
+
+    def is_coinbase(self) -> bool:
+        return self.sender is None
 
     @property
     def txid(self) -> str:
@@ -46,7 +49,7 @@ class Transaction:
         provided_txid = data["txid"]
 
         tx = cls(
-            sender=str(data["sender"]),
+            sender=str(data["sender"]) if data["sender"] is not None else None,
             recipient=str(data["recipient"]),
             amount=float(data["amount"]),
             timestamp=int(data["timestamp"]),

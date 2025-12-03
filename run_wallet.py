@@ -10,8 +10,6 @@ from wallet.commands import (
 from wallet.storage import (
     add_account,
     delete_account,
-    get_db_path,
-    init_db,
     list_accounts,
 )
 
@@ -20,8 +18,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Manage cryptocurrency wallet accounts')
 
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
-
-    subparsers.add_parser('init', help='Initialize wallet database')
 
     add_parser = subparsers.add_parser('add', help='Add a new account')
     add_parser.add_argument('label', help='Account label/name')
@@ -47,22 +43,8 @@ def parse_args():
 
 def main():
     args = parse_args()
-    db_path = get_db_path()
 
-    needs_db = ['add', 'list', 'delete', 'show', 'show-priv', 'create-tx']
-
-    if args.command in needs_db:
-        if not db_path.exists():
-            print(f"ERROR: Database does not exist. Run 'init' first.")
-            return 2
-
-    if args.command == 'init':
-        if db_path.exists():
-            print(f"ERROR: Database already exists. Init aborted.")
-            return 2
-        db_path = init_db()
-        print(f"SUCCESS: Wallet database initialized")
-    elif args.command == 'add':
+    if args.command == 'add':
         add_account(args.label, 0.0)
     elif args.command == 'list':
         list_accounts()

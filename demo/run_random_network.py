@@ -28,10 +28,31 @@ def kill_node_processes():
 def clean_databases():
     db_dir = PARENT_DIR / "node" / "db"
     if db_dir.exists():
-        print(f"Cleaning database directory: {db_dir}")
+        print(f"Cleaning node database directory: {db_dir}")
         shutil.rmtree(db_dir)
         db_dir.mkdir()
-        print("  Database directory cleaned successfully")
+        print("  Node database directory cleaned successfully")
+
+    wallet_db_dir = PARENT_DIR / "wallet" / "db"
+    if wallet_db_dir.exists():
+        print(f"Cleaning wallet database directory: {wallet_db_dir}")
+        for db_file in wallet_db_dir.glob("node_*.db"):
+            db_file.unlink()
+        print("  Wallet database directory cleaned successfully")
+
+
+def create_node_account(node_index: int) -> str:
+    label = f"node_{node_index}"
+
+    result = subprocess.run(
+        [sys.executable, "run_wallet.py", "add", label],
+        cwd=str(PARENT_DIR),
+        input="demo\n",
+        text=True,
+        capture_output=True
+    )
+
+    return label
 
 
 class NetworkManager:
@@ -49,12 +70,16 @@ class NetworkManager:
         sys.exit(0)
 
     def start_node(self, port, seed_peers=None, is_miner=False):
+        node_index = port - START_PORT
+        wallet_label = create_node_account(node_index)
+
         cmd = [
             sys.executable,
             "run_node.py",
             "--host", HOST,
             "--port", str(port),
-            "--role", "miner" if is_miner else "normal"
+            "--role", "miner" if is_miner else "normal",
+            "--wallet-label", wallet_label
         ]
 
         if seed_peers:
@@ -62,7 +87,7 @@ class NetworkManager:
             cmd.extend(["--seeds", seeds_str])
 
         role_label = "MINER" if is_miner else "normal"
-        print(f"Starting node on port {port} (role: {role_label})", end="")
+        print(f"Starting node on port {port} (role: {role_label}, wallet: {wallet_label})", end="")
         if seed_peers:
             print(f" with seeds: {seed_peers}")
         else:
@@ -139,9 +164,6 @@ class NetworkManager:
         print(f"Will perform {MINE_OPERATIONS_COUNT} mining operations")
         print(f"Available miners: {len(self.miner_ports)}")
         print("=" * 70 + "\n")
-
-        successful_mines = 0
-        failed_mines = 0
 
         for i in range(MINE_OPERATIONS_COUNT):
             miner_port = random.choice(self.miner_ports)

@@ -2,6 +2,7 @@ import argparse
 import logging
 
 from node.server import NodeServer
+from wallet.storage import get_public_key
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,8 +31,12 @@ def main():
                         help='Comma-separated seed peers (e.g., 127.0.0.1:5000,127.0.0.1:5001)')
     parser.add_argument('--role', type=str, choices=['normal', 'miner'], default='normal',
                         help='"normal" for regular node, "miner" for mining node')
+    parser.add_argument('--wallet-label', type=str, required=True,
+                        help='Label of account in wallet to use for public key')
 
     args = parser.parse_args()
+
+    public_key = get_public_key(args.wallet_label)
 
     seed_peers = parse_seed_peers(args.seeds)
 
@@ -39,7 +44,8 @@ def main():
         host=args.host,
         port=args.port,
         seed_peers=seed_peers,
-        role=args.role
+        role=args.role,
+        public_key=public_key
     )
 
     server.run()

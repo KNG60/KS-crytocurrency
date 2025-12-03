@@ -2,22 +2,16 @@
 
 Portfel umożliwia zarządzanie kontami kryptowalutowymi z kluczami ECDSA secp256k1.
 
-### Wyczyszczenie bazy danych
+### Wyczyszczenie baz danych
 
 ```bash
 rm -rf db/*
 ```
 
-### Tworzenie portfela
-
-```bash
-python ../run_wallet.py init
-```
-
 ### Dodanie konta
 
 ```bash
-python ../run_wallet.py add Bill_Gates
+python ../run_wallet.py add alice
 # Zostaniesz poproszony o hasło do zaszyfrowania klucza prywatnego
 ```
 
@@ -62,27 +56,24 @@ python ../run_wallet.py --help
 ### Przykład użycia
 
 ```bash
-# 1. Utwórz nowy portfel
-python ../run_wallet.py init
-
-# 2. Dodaj konta
+# 1. Dodaj konta
 python ../run_wallet.py add alice
 python ../run_wallet.py add bob
 
-# 3. Wyświetl wszystkie konta
+# 2. Wyświetl wszystkie konta
 python ../run_wallet.py list
 
-# 4. Pokaż szczegóły konta
+# 3. Pokaż szczegóły konta
 python ../run_wallet.py show alice
 
-# 5. Wyświetl klucz prywatny (wymaga hasła)
+# 4. Wyświetl klucz prywatny (wymaga hasła)
 python ../run_wallet.py show-priv alice
 
-# 6. Utwórz transakcję od Alice do Boba
+# 5. Utwórz transakcję od Alice do Boba
 python ../run_wallet.py create-tx alice bob 25.0
 # Wprowadź hasło Alice
 
-# 7. Usuń konto
+# 6. Usuń konto
 python ../run_wallet.py delete alice
 ```
 
