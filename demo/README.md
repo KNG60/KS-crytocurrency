@@ -30,4 +30,18 @@ Skrypt:
 python run_demo_wallet.py
 ```
 
+## 3. run_demo_transactions.py
+
+Skrypt:
+
+- Demonstruje tworzenie podpisanych transakcji przez CLI
+- Tworzy konta alice i bob
+- Tworzy podpisaną transakcję między nimi
+
+### Użycie:
+
+```bash
+python run_demo_transactions.py
+```
+
 

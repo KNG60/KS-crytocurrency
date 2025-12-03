@@ -1,5 +1,7 @@
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
+
+from node.transactions import Transaction, SignedTransaction
 
 
 def gen_key_pair(password: str) -> tuple[bytes, str]:
@@ -37,3 +39,11 @@ def export_private_key_pem(private_key) -> str:
         encryption_algorithm=serialization.NoEncryption()
     )
     return priv_pem.decode('utf-8')
+
+
+def sign_tx(private_key, tx: Transaction) -> SignedTransaction:
+    signature = private_key.sign(
+        tx.txid.encode('utf-8'),
+        ec.ECDSA(hashes.SHA256())
+    )
+    return SignedTransaction(tx, signature.hex())

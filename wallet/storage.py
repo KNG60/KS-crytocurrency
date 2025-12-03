@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from getpass import getpass
 from pathlib import Path
@@ -17,18 +18,20 @@ CREATE TABLE IF NOT EXISTS account (
 );
 """
 
+
 def get_db_path(name=DEFAULT_DB_NAME):
-    """Returns database file path"""
-    return Path(f"db/{name}.db")
+    wallet_dir = os.path.dirname(os.path.abspath(__file__))
+    db_dir = os.path.join(wallet_dir, 'db')
+    os.makedirs(db_dir, exist_ok=True)
+    return Path(os.path.join(db_dir, f'{name}.db'))
 
 
 def init_db(name=DEFAULT_DB_NAME) -> Path:
     db_path = get_db_path(name)
-    db_path.parent.mkdir(exist_ok=True)
-    
+
     with sqlite3.connect(db_path) as conn:
-        conn.executescript(schema_table)
-    
+        conn.execute(schema_table)
+
     return db_path
 
 
@@ -92,15 +95,15 @@ def get_account_details(label: str, db_name=DEFAULT_DB_NAME):
     db_path = get_db_path(db_name)
     with sqlite3.connect(db_path) as conn:
         cur = conn.execute(
-            "SELECT id, label, balance, pubkey_hex, created_at FROM account WHERE label = ?", 
+            "SELECT id, label, balance, pubkey_hex, created_at FROM account WHERE label = ?",
             (label,)
         )
         account = cur.fetchone()
-    
+
     if not account:
         print(f"INFO: Account '{label}' not found in database: {db_name}")
         return None
-    
+
     return {
         'id': account[0],
         'label': account[1],

@@ -59,6 +59,17 @@ class Transaction:
         return tx
 
 
+class SignedTransaction:
+    def __init__(self, transaction: Transaction, signature: str):
+        self.transaction = transaction
+        self.signature = signature
+
+    def to_dict(self) -> Dict:
+        tx_dict = self.transaction.to_dict()
+        tx_dict["signature"] = self.signature
+        return tx_dict
+
+
 def serialize_transactions(txs: List[Transaction]) -> List[Dict]:
     return [tx.to_dict() for tx in txs]
 

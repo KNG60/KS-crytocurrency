@@ -15,7 +15,7 @@
 
 ### **Etap 3: Transakcje i konsensus**
 
-- [ ] **Wallet:** Tworzenie i podpisywanie transakcji między użytkownikami
+- [x] **Wallet:** Tworzenie i podpisywanie transakcji między użytkownikami
 - [ ] **Node:** Gromadzenie oczekujących transakcji w sieci
 - [ ] **Node:** Mechanizm kopania bloków i ustalania konsensusu (Proof-of-Work)
 - [ ] **Node:** Dodawanie nagród dla górników (transakcje coinbase)
