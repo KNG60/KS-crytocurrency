@@ -3,7 +3,6 @@
 from .commands import show_account_details, show_private_key
 from .crypto import decrypt_private_key, export_private_key_pem, gen_key_pair
 from .storage import (
-    DEFAULT_DB_NAME,
     add_account,
     delete_account,
     get_account_details,
@@ -17,7 +16,6 @@ __all__ = [
     'gen_key_pair',
     'decrypt_private_key',
     'export_private_key_pem',
-    'DEFAULT_DB_NAME',
     'get_db_path',
     'init_db',
     'add_account',

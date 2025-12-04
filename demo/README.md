@@ -1,6 +1,16 @@
 # Demo Scripts
 
-## 1. run_random_network.py
+## 1. run_demo.py
+
+Demonstracja wszystkich funkcji portfela i transakcji
+
+### Użycie:
+
+```bash
+python run_demo.py
+```
+
+## 2. run_random_network.py
 
 Skrypt:
 
@@ -15,13 +25,13 @@ Skrypt:
 python run_random_network.py
 ```
 
-## 2. run_demo_wallet.py
+## 3. run_demo_wallet.py
 
 Skrypt:
 
-- Demonstruje wszystkie operacje portfela (init, add, list, show, show-priv, delete)
+- Demonstruje wszystkie operacje portfela
 - Dodaje trzy konta: alice, bob, charlie
-- Pokazuje obsługę błędów (ponowna inicjalizacja, błędne hasło)
+- Pokazuje obsługę błędów (błędne hasło, nieistniejące konto)
 - Usuwa jedno konto i pokazuje stan po usunięciu
 
 ### Użycie:
@@ -30,7 +40,7 @@ Skrypt:
 python run_demo_wallet.py
 ```
 
-## 3. run_demo_transactions.py
+## 4. run_demo_transactions.py
 
 Skrypt:
 

@@ -44,6 +44,8 @@ def add_account(label: str, balance: float = 0.0):
 
     db_path = get_db_path(label)
 
+    init_db(label)
+
     with sqlite3.connect(db_path) as conn:
         password = getpass(f"Password to encrypt the private key for account '{label}': ")
         priv_pem, pub_hex = gen_key_pair(password)
@@ -93,6 +95,9 @@ def list_accounts():
 def get_account_details(label: str):
     db_path = get_db_path(label)
 
+    if not db_path.exists():
+        return None
+
     with sqlite3.connect(db_path) as conn:
         cur = conn.execute(
             "SELECT id, label, balance, pubkey_hex, created_at FROM account WHERE label = ?",
@@ -112,6 +117,10 @@ def get_account_details(label: str):
 
 def get_public_key(label: str):
     db_path = get_db_path(label)
+
+    if not db_path.exists():
+        return None
+
     with sqlite3.connect(db_path) as conn:
         cur = conn.execute(
             "SELECT pubkey_hex FROM account WHERE label = ?",
@@ -123,6 +132,10 @@ def get_public_key(label: str):
 
 def get_private_key_pem(label: str):
     db_path = get_db_path(label)
+
+    if not db_path.exists():
+        print(f"INFO: Account '{label}' not found")
+        return None
 
     with sqlite3.connect(db_path) as conn:
         cur = conn.execute(
