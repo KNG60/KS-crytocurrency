@@ -10,6 +10,7 @@ from node.blockchain import Block, Blockchain
 from node.graph import NetworkGraphManager
 from node.network import NetworkClient
 from node.storage import ChainStorage, PeerStorage
+from node.transactions import SignedTransaction
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class NodeServer:
         self.role = role
         self.blockchain = Blockchain(DIFFICULTY)
         self.chain_storage = ChainStorage(chain_db_path)
+        self.pending_transactions: list[SignedTransaction] = []
         self._init_chain()
 
     def _init_chain(self):
@@ -109,6 +111,18 @@ class NodeServer:
 
     def is_self_peer(self, peer_host: str, peer_port: int) -> bool:
         return peer_host == self.host and peer_port == self.port
+
+    def add_transaction(self, signed_tx: SignedTransaction) -> bool:
+        for tx in self.pending_transactions:
+            if tx.signature == signed_tx.signature:
+                return False
+        self.pending_transactions.append(signed_tx)
+        logger.info(f"Added transaction to mempool: {signed_tx.transaction.txid[:16]}...")
+        return True
+
+    def broadcast_transaction(self, transaction: dict):
+        peers = self.storage.get_all_peers()
+        self.network.broadcast_transaction(peers, transaction)
 
     def _remove_inactive_peers(self):
         peer_list = self.storage.get_all_peers()
@@ -214,6 +228,26 @@ class NodeServer:
             self.network.broadcast_block(peers, new_block.to_dict())
 
             return jsonify(new_block.to_dict()), 200
+
+        @self.app.route('/transactions', methods=['GET'])
+        def get_transactions():
+            return jsonify([tx.to_dict() for tx in self.pending_transactions]), 200
+
+        @self.app.route('/transactions', methods=['POST'])
+        def receive_transaction():
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "missing transaction body"}), 400
+
+            try:
+                signed_tx = SignedTransaction.from_dict(data)
+            except Exception as e:
+                return jsonify({"error": f"invalid transaction: {e}"}), 400
+
+            if self.add_transaction(signed_tx):
+                self.broadcast_transaction(data)
+                return jsonify({"status": "accepted", "txid": signed_tx.transaction.txid}), 201
+            return jsonify({"status": "already exists", "txid": signed_tx.transaction.txid}), 200
 
     def bootstrap(self):
         logger.info(f"Bootstrapping node with {len(self.seed_peers)} seed peers")

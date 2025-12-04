@@ -71,6 +71,26 @@ class NetworkClient:
                 ok += 1
         logger.info(f"Broadcasted block h={block.get('height')} to {ok}/{len(peers)} peers")
 
+    def submit_transaction_to_peer(self, peer_host: str, peer_port: int, transaction: Dict) -> bool:
+        url = f"http://{peer_host}:{peer_port}/transactions"
+        try:
+            r = requests.post(url, json=transaction, timeout=self.timeout)
+            if r.status_code in (200, 201):
+                logger.info(f"Submitted tx {transaction['txid'][:16]}... to {peer_host}:{peer_port}")
+                return True
+            logger.warning(f"Peer {peer_host}:{peer_port} rejected transaction: {r.status_code}")
+            return False
+        except requests.ConnectionError:
+            logger.warning(f"Peer {peer_host}:{peer_port} is unreachable for transaction submit")
+            return False
+
+    def broadcast_transaction(self, peers: List[Dict], transaction: Dict):
+        ok = 0
+        for p in peers:
+            if self.submit_transaction_to_peer(p['host'], int(p['port']), transaction):
+                ok += 1
+        logger.info(f"Broadcasted transaction to {ok}/{len(peers)} peers")
+
     def fetch_chain_from_peer(self, peer_host: str, peer_port: int) -> Optional[List[Dict]]:
         url = f"http://{peer_host}:{peer_port}/blocks"
         try:

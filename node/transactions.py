@@ -72,6 +72,12 @@ class SignedTransaction:
         tx_dict["signature"] = self.signature
         return tx_dict
 
+    @classmethod
+    def from_dict(cls, data: Dict) -> "SignedTransaction":
+        signature = data["signature"]
+        transaction = Transaction.from_dict(data)
+        return cls(transaction, signature)
+
 
 def serialize_transactions(txs: List[Transaction]) -> List[Dict]:
     return [tx.to_dict() for tx in txs]
