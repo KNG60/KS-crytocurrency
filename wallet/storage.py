@@ -9,7 +9,6 @@ schema_table = """
 CREATE TABLE IF NOT EXISTS account (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     label TEXT UNIQUE NOT NULL,
-    balance REAL NOT NULL DEFAULT 0.0,
     pubkey_hex TEXT NOT NULL,
     privkey_pem BLOB NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -33,15 +32,7 @@ def init_db(label: str) -> Path:
     return db_path
 
 
-def add_account(label: str, balance: float = 0.0):
-    try:
-        if abs(float(balance) - 0.0) > 1e-9:
-            print(f"ERROR: New accounts must have a balance of 0.0. Provided: {balance}")
-            return False
-    except (TypeError, ValueError):
-        print(f"ERROR: Invalid balance value: {balance}")
-        return False
-
+def add_account(label: str):
     db_path = get_db_path(label)
 
     init_db(label)
@@ -50,11 +41,11 @@ def add_account(label: str, balance: float = 0.0):
         password = getpass(f"Password to encrypt the private key for account '{label}': ")
         priv_pem, pub_hex = gen_key_pair(password)
         conn.execute(
-            "INSERT INTO account (label, balance, pubkey_hex, privkey_pem) VALUES (?,?,?,?)",
-            (label, balance, pub_hex, priv_pem)
+            "INSERT INTO account (label, pubkey_hex, privkey_pem) VALUES (?,?,?)",
+            (label, pub_hex, priv_pem)
         )
         conn.commit()
-        print(f"SUCCESS: Added account '{label}' (balance {balance})")
+        print(f"SUCCESS: Added account '{label}'")
         print(f"   pubkey_hex: {pub_hex[:20]}...{pub_hex[-10:]}")
         return True
 
@@ -83,12 +74,12 @@ def list_accounts():
     for db_file in sorted(db_files):
         label = db_file.stem
         with sqlite3.connect(db_file) as conn:
-            cur = conn.execute("SELECT id, label, balance, pubkey_hex, created_at FROM account WHERE label = ?",
+            cur = conn.execute("SELECT id, label, pubkey_hex, created_at FROM account WHERE label = ?",
                                (label,))
             row = cur.fetchone()
             if row:
-                pub_short = row[3][:20] + "..." + row[3][-10:]
-                print(f"[{row[0]}] {row[1]} | balance={row[2]} | pubkey={pub_short} | {row[4]}")
+                pub_short = row[2][:20] + "..." + row[2][-10:]
+                print(f"[{row[0]}] {row[1]} | pubkey={pub_short} | {row[3]}")
     return True
 
 
@@ -100,7 +91,7 @@ def get_account_details(label: str):
 
     with sqlite3.connect(db_path) as conn:
         cur = conn.execute(
-            "SELECT id, label, balance, pubkey_hex, created_at FROM account WHERE label = ?",
+            "SELECT id, label, pubkey_hex, created_at FROM account WHERE label = ?",
             (label,)
         )
         account = cur.fetchone()
@@ -108,9 +99,8 @@ def get_account_details(label: str):
             return {
                 'id': account[0],
                 'label': account[1],
-                'balance': account[2],
-                'pubkey_hex': account[3],
-                'created_at': account[4]
+                'pubkey_hex': account[2],
+                'created_at': account[3]
             }
         return None
 
@@ -149,22 +139,3 @@ def get_private_key_pem(label: str):
         return None
 
     return row[0]
-
-
-def update_account_balance(label: str, new_balance: float):
-    """Update the balance of an account."""
-    db_path = get_db_path(label)
-
-    if not db_path.exists():
-        print(f"ERROR: Account '{label}' not found")
-        return False
-
-    with sqlite3.connect(db_path) as conn:
-        conn.execute(
-            "UPDATE account SET balance = ? WHERE label = ?",
-            (new_balance, label)
-        )
-        conn.commit()
-
-    print(f"SUCCESS: Updated balance for '{label}' to {new_balance}")
-    return True

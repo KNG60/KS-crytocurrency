@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 PARENT_DIR = Path(__file__).parent.parent
@@ -10,14 +11,19 @@ BOB_NODE_PORT = 5002
 node_processes = []
 
 
-def start_node(wallet_label: str, port: int, role: str = "normal"):
+def start_node(wallet_label: str, port: int, role: str = "normal", seeds: str = ""):
     print(f"Starting {role} node for {wallet_label} on port {port}...")
+    cmd = [sys.executable, "run_node.py",
+           "--host", "127.0.0.1",
+           "--port", str(port),
+           "--role", role,
+           "--wallet-label", wallet_label]
+
+    if seeds:
+        cmd.extend(["--seeds", seeds])
+
     proc = subprocess.Popen(
-        [sys.executable, "run_node.py",
-         "--host", "127.0.0.1",
-         "--port", str(port),
-         "--role", role,
-         "--wallet-label", wallet_label],
+        cmd,
         cwd=str(PARENT_DIR),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
@@ -71,16 +77,13 @@ def demo_wallet():
     print("\n2. Listing accounts...")
     run_cmd("list")
 
-    print("\n3. Showing alice's details...")
-    run_cmd("show alice")
-
-    print("\n4. Showing alice's private key...")
+    print("\n3. Showing alice's private key...")
     run_cmd("show-priv alice", password="demo123")
 
-    print("\n5. Deleting charlie's account...")
+    print("\n4. Deleting charlie's account...")
     run_cmd("delete charlie")
 
-    print("\n6. Listing accounts after deletion...")
+    print("\n5. Listing accounts after deletion...")
     run_cmd("list")
 
 
@@ -89,15 +92,18 @@ def demo_transactions():
     print("PART 2: TRANSACTION OPERATIONS & MINING")
     print("=" * 70)
 
-    print("\n1. Initial account states...")
-    run_cmd("show alice")
-    run_cmd("show bob")
-
-    print("\n2. Starting blockchain nodes...")
+    print("\n1. Starting blockchain nodes...")
     print("   - Alice's node (miner) on port 5001")
     start_node("alice", ALICE_NODE_PORT, role="miner")
-    print("   - Bob's node (miner) on port 5002")
-    start_node("bob", BOB_NODE_PORT, role="miner")
+    print("   - Bob's node (miner) on port 5002 (with Alice as seed peer)")
+    start_node("bob", BOB_NODE_PORT, role="miner", seeds=f"127.0.0.1:{ALICE_NODE_PORT}")
+
+    print("   Waiting for nodes to initialize and connect...")
+    time.sleep(3)
+
+    print("\n2. Checking initial account states (should be 0)...")
+    run_cmd(f"show alice --node http://127.0.0.1:{ALICE_NODE_PORT}")
+    run_cmd(f"show bob --node http://127.0.0.1:{BOB_NODE_PORT}")
 
     print("\n3. Mining block on alice's node (port 5001)...")
     run_cmd(f"mine --node http://127.0.0.1:{ALICE_NODE_PORT}")
@@ -105,20 +111,26 @@ def demo_transactions():
     print("\n4. Mining block on bob's node (port 5002)...")
     run_cmd(f"mine --node http://127.0.0.1:{BOB_NODE_PORT}")
 
-    print("\n5. Creating transaction: alice -> bob (25.0 coins)...")
+    print("\n5. Checking balances after mining rewards...")
+    run_cmd(f"show alice --node http://127.0.0.1:{ALICE_NODE_PORT}")
+    run_cmd(f"show bob --node http://127.0.0.1:{BOB_NODE_PORT}")
+
+    print("\n6. Creating transaction: alice -> bob (25.0 coins)...")
     run_cmd(f"create-tx alice bob 25.0 --node http://127.0.0.1:{ALICE_NODE_PORT}", password="demo123")
 
-    print("\n6. Creating transaction: bob -> alice (10.0 coins)...")
+    print("\n7. Creating transaction: bob -> alice (10.0 coins)...")
     run_cmd(f"create-tx bob alice 10.0 --node http://127.0.0.1:{BOB_NODE_PORT}", password="demo123")
 
-    print("\n7. Mining another block to include pending transactions...")
+    print("   Waiting for transaction propagation...")
+    time.sleep(1)
+
+    print("\n8. Mining another block to include pending transactions...")
     print("   Mining on alice's node...")
     run_cmd(f"mine --node http://127.0.0.1:{ALICE_NODE_PORT}")
 
-    print("\n8. Note: Balances are tracked on the blockchain")
-    print("   Use GET /blocks to query blockchain state from nodes")
-    run_cmd("show alice")
-    run_cmd("show bob")
+    print("\n9. Checking final balances from blockchain...")
+    run_cmd(f"show alice --node http://127.0.0.1:{ALICE_NODE_PORT}")
+    run_cmd(f"show bob --node http://127.0.0.1:{BOB_NODE_PORT}")
 
 
 def main():

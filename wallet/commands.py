@@ -11,6 +11,39 @@ from .storage import (
 )
 
 
+def calculate_balance_from_chain(pubkey_hex: str, node_url: str) -> float:
+    try:
+        response = requests.get(f"{node_url}/blocks", timeout=5)
+        if response.status_code != 200:
+            print(f"ERROR: Failed to fetch blockchain from {node_url}")
+            return 0.0
+
+        chain = response.json()
+        balance = 0.0
+
+        for block in chain:
+            txs = block.get('txs', [])
+            for tx in txs:
+                recipient = tx['recipient']
+                sender = tx['sender']
+                amount = float(tx['amount'])
+
+                if recipient == pubkey_hex:
+                    balance += amount
+
+                if sender == pubkey_hex:
+                    balance -= amount
+
+        return balance
+
+    except requests.exceptions.ConnectionError:
+        print(f"ERROR: Cannot connect to node at {node_url}")
+        return 0.0
+    except Exception as e:
+        print(f"ERROR: Failed to calculate balance: {e}")
+        return 0.0
+
+
 def show_private_key(label: str):
     pem_blob = get_private_key_pem(label)
     if pem_blob is None:
@@ -29,12 +62,13 @@ def show_private_key(label: str):
         return False
 
 
-def show_account_details(label: str):
+def show_account_details(label: str, node_url: str):
     account = get_account_details(label)
     if account:
         print(f"\n=== ACCOUNT DETAILS: {account['label']} ===")
         print(f"ID: {account['id']}")
-        print(f"Balance: {account['balance']}")
+        balance = calculate_balance_from_chain(account['pubkey_hex'], node_url)
+        print(f"Balance: {balance}")
         print(f"Public Key: {account['pubkey_hex']}")
         print(f"Created: {account['created_at']}")
         return True
@@ -123,7 +157,7 @@ def mine_block(node_url: str):
         print("Sending POST request to /mine...")
 
         start_time = time.time()
-        response = requests.post(f"{node_url}/mine", timeout=30)
+        response = requests.post(f"{node_url}/mine", timeout=120)
         elapsed = time.time() - start_time
 
         if response.status_code == 200:

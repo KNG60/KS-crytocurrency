@@ -30,6 +30,8 @@ def parse_args():
 
     show_parser = subparsers.add_parser('show', help='Show details of specific account')
     show_parser.add_argument('label', help='Account label/name to show')
+    show_parser.add_argument('--node', type=str, required=True,
+                             help='Node URL to fetch balance (e.g., http://127.0.0.1:5000)')
 
     show_priv_parser = subparsers.add_parser('show-priv', help='Show decrypted private key (PEM) for account')
     show_priv_parser.add_argument('label', help='Account label/name to show private key for')
@@ -51,13 +53,13 @@ def main():
     args = parse_args()
 
     if args.command == 'add':
-        add_account(args.label, 0.0)
+        add_account(args.label)
     elif args.command == 'list':
         list_accounts()
     elif args.command == 'delete':
         delete_account(args.label)
     elif args.command == 'show':
-        show_account_details(args.label)
+        show_account_details(args.label, node_url=args.node)
     elif args.command == 'show-priv':
         show_private_key(args.label)
     elif args.command == 'create-tx':

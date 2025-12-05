@@ -54,17 +54,7 @@ result = subprocess.run(
 )
 print(result.stdout)
 
-print("4. Showing Alice's details...")
-result = subprocess.run(
-    [sys.executable, str(PARENT_DIR / "run_wallet.py"), "show", "alice"],
-    capture_output=True,
-    text=True,
-    check=True,
-    cwd=PARENT_DIR
-)
-print(result.stdout)
-
-print("\n5. Creating transaction: Alice -> Bob (25 coins)...")
+print("\n4. Creating transaction: Alice -> Bob (25 coins)...")
 process = subprocess.Popen(
     [sys.executable, str(PARENT_DIR / "run_wallet.py"), "create-tx", "alice", "bob", "25.0"],
     stdin=subprocess.PIPE,
