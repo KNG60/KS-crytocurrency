@@ -6,6 +6,7 @@ from wallet.commands import (
     show_account_details,
     show_private_key,
     create_transaction,
+    mine_block,
 )
 from wallet.storage import (
     add_account,
@@ -37,6 +38,11 @@ def parse_args():
     tx_parser.add_argument('sender', help='Sender account label')
     tx_parser.add_argument('recipient', help='Recipient account label')
     tx_parser.add_argument('amount', type=float, help='Amount to send')
+    tx_parser.add_argument('--node', type=str, required=True,
+                           help='Node URL to broadcast transaction (e.g., http://127.0.0.1:5000)')
+
+    mine_parser = subparsers.add_parser('mine', help='Request mining from a node via HTTP')
+    mine_parser.add_argument('--node', type=str, help='Node URL (e.g.: http://127.0.0.1:5000)')
 
     return parser.parse_args()
 
@@ -55,10 +61,15 @@ def main():
     elif args.command == 'show-priv':
         show_private_key(args.label)
     elif args.command == 'create-tx':
-        tx_dict = create_transaction(args.sender, args.recipient, args.amount)
+        tx_dict = create_transaction(args.sender, args.recipient, args.amount, node_url=args.node)
         if tx_dict:
             print("\nTransaction JSON:")
             print(json.dumps(tx_dict, indent=2))
+    elif args.command == 'mine':
+        block_dict = mine_block(args.node)
+        if block_dict:
+            print("\nMined Block JSON:")
+            print(json.dumps(block_dict, indent=2))
     else:
         print("No command specified. Use --help for available commands.")
         return 1

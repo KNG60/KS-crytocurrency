@@ -221,8 +221,10 @@ class NodeServer:
             last_d = self.chain_storage.get_last_block()
             prev = Block.from_dict(last_d) if last_d else self.blockchain.create_genesis()
 
-            new_block = self.blockchain.mine_next_block(prev, self.public_key, txs=[])
+            new_block = self.blockchain.mine_next_block(prev, self.public_key, txs=self.pending_transactions)
             self.chain_storage.save_block(new_block.to_dict())
+
+            self.pending_transactions.clear()
 
             peers = self.storage.get_all_peers()
             self.network.broadcast_block(peers, new_block.to_dict())

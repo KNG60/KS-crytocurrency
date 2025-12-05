@@ -79,9 +79,9 @@ class SignedTransaction:
         return cls(transaction, signature)
 
 
-def serialize_transactions(txs: List[Transaction]) -> List[Dict]:
+def serialize_signed_transactions(txs: List[SignedTransaction]) -> List[Dict]:
     return [tx.to_dict() for tx in txs]
 
 
-def deserialize_transactions(raw: List[Dict]) -> List[Transaction]:
-    return [Transaction.from_dict(tx) for tx in raw]
+def deserialize_signed_transactions(raw: List[Dict]) -> List[SignedTransaction]:
+    return [SignedTransaction.from_dict(tx) for tx in raw]

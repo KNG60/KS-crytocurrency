@@ -1,7 +1,7 @@
 import time
 from typing import Dict, List, Optional
 
-from .transactions import Transaction, serialize_transactions, deserialize_transactions
+from .transactions import Transaction, SignedTransaction, serialize_signed_transactions, deserialize_signed_transactions
 from .utils import hash_dict
 
 MINING_REWARD = 50.0
@@ -13,7 +13,7 @@ class Block:
             height: int,
             prev_hash: str,
             timestamp: int,
-            txs: List[Transaction],
+            txs: List[SignedTransaction],
             nonce: int,
             difficulty: int,
             miner: str,
@@ -33,7 +33,7 @@ class Block:
             "height": self.height,
             "prev_hash": self.prev_hash,
             "timestamp": self.timestamp,
-            "txs": serialize_transactions(self.txs),
+            "txs": serialize_signed_transactions(self.txs),
             "nonce": self.nonce,
             "difficulty": self.difficulty,
             "miner": self.miner,
@@ -50,7 +50,7 @@ class Block:
             height=int(d["height"]),
             prev_hash=str(d["prev_hash"]),
             timestamp=int(d["timestamp"]),
-            txs=deserialize_transactions(d["txs"]),
+            txs=deserialize_signed_transactions(d["txs"]),
             nonce=int(d["nonce"]),
             difficulty=int(d["difficulty"]),
             miner=str(d["miner"]),
@@ -58,11 +58,11 @@ class Block:
         )
 
 
-def validate_transactions(txs: List[Transaction], miner: str) -> bool:
+def validate_transactions(txs: List[SignedTransaction], miner: str) -> bool:
     if len(txs) == 0:
         return True
 
-    first_tx = txs[0]
+    first_tx = txs[0].transaction
     if not first_tx.is_coinbase():
         return False
     if first_tx.recipient != miner:
@@ -70,8 +70,8 @@ def validate_transactions(txs: List[Transaction], miner: str) -> bool:
     if first_tx.amount != MINING_REWARD:
         return False
 
-    for tx in txs[1:]:
-        if tx.is_coinbase():
+    for signed_tx in txs[1:]:
+        if signed_tx.transaction.is_coinbase():
             return False
 
     return True
@@ -88,14 +88,15 @@ class Blockchain:
         return h.startswith("0" * max(0, int(difficulty)))
 
     @staticmethod
-    def create_coinbase_transaction(recipient: str, amount: float = MINING_REWARD) -> Transaction:
-        return Transaction(
+    def create_coinbase_transaction(recipient: str, amount: float = MINING_REWARD) -> SignedTransaction:
+        transaction = Transaction(
             sender=None,
             recipient=recipient,
             amount=amount,
             timestamp=int(time.time()),
             prev_txid=None
         )
+        return SignedTransaction(transaction, signature="")
 
     def validate_block(self, block: Block, prev: Optional[Block]) -> bool:
         if block.height == 0:
@@ -122,7 +123,7 @@ class Blockchain:
 
         return True
 
-    def mine_next_block(self, prev: Block, miner_id: str, txs: List[Transaction]) -> Block:
+    def mine_next_block(self, prev: Block, miner_id: str, txs: List[SignedTransaction]) -> Block:
         coinbase = self.create_coinbase_transaction(miner_id)
         all_txs = [coinbase] + txs
 
@@ -133,7 +134,7 @@ class Blockchain:
                 "height": height,
                 "prev_hash": prev.hash,
                 "timestamp": int(time.time()),
-                "txs": serialize_transactions(all_txs),
+                "txs": serialize_signed_transactions(all_txs),
                 "nonce": nonce,
                 "difficulty": self.difficulty,
                 "miner": miner_id,

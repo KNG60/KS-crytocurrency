@@ -1,6 +1,8 @@
 import time
 from getpass import getpass
 
+import requests
+
 from node.transactions import Transaction
 from .crypto import decrypt_private_key, export_private_key_pem, sign_tx
 from .storage import (
@@ -39,7 +41,7 @@ def show_account_details(label: str):
     return False
 
 
-def create_transaction(sender_label: str, recipient_label: str, amount: float):
+def create_transaction(sender_label: str, recipient_label: str, amount: float, node_url: str):
     sender_account = get_account_details(sender_label)
     if not sender_account:
         print(f"ERROR: Sender account '{sender_label}' not found")
@@ -83,6 +85,7 @@ def create_transaction(sender_label: str, recipient_label: str, amount: float):
         return None
 
     signed_tx = sign_tx(private_key, tx)
+    tx_dict = signed_tx.to_dict()
 
     print(f"\n=== TRANSACTION CREATED ===")
     print(f"TXID: {signed_tx.transaction.txid}")
@@ -91,6 +94,71 @@ def create_transaction(sender_label: str, recipient_label: str, amount: float):
     print(f"Amount: {amount}")
     print(f"Timestamp: {tx.timestamp}")
     print(f"Signature: {signed_tx.signature[:40]}...{signed_tx.signature[-20:]}")
+
+    print(f"\nBroadcasting to node: {node_url}")
+    try:
+        response = requests.post(f"{node_url}/transactions", json=tx_dict, timeout=5)
+        if response.status_code in [200, 201]:
+            result = response.json()
+            print(f"✓ Transaction broadcast successful!")
+            print(f"Status: {result.get('status', 'accepted')}")
+        else:
+            print(f"✗ Transaction broadcast failed: {response.status_code}")
+            print(f"Response: {response.text}")
+    except requests.exceptions.ConnectionError:
+        print(f"✗ Cannot connect to node at {node_url}")
+        print("Make sure the node is running")
+    except Exception as e:
+        print(f"✗ Broadcast error: {e}")
+
     print("=========================\n")
 
-    return signed_tx.to_dict()
+    return tx_dict
+
+
+def mine_block(node_url: str):
+    try:
+        print(f"\n=== REQUESTING MINING FROM NODE ===")
+        print(f"Node URL: {node_url}")
+        print("Sending POST request to /mine...")
+
+        start_time = time.time()
+        response = requests.post(f"{node_url}/mine", timeout=30)
+        elapsed = time.time() - start_time
+
+        if response.status_code == 200:
+            block_data = response.json()
+            print(f"\n✓ Block mined successfully!")
+            print(f"Block Hash: {block_data.get('hash')}")
+            print(f"Block Height: {block_data.get('height')}")
+            print(f"Nonce: {block_data.get('nonce')}")
+            print(f"Miner: {block_data.get('miner', '')[:20]}...{block_data.get('miner', '')[-10:]}")
+            print(f"Time taken: {elapsed:.2f} seconds")
+
+            txs = block_data.get('txs', [])
+            if txs:
+                coinbase_tx = txs[0]
+                print(f"Coinbase TX ID: {coinbase_tx.get('txid')}")
+                print(f"Mining Reward: {coinbase_tx.get('amount')} coins")
+
+            print("===================================\n")
+            return block_data
+        elif response.status_code == 403:
+            print(f"\nERROR: Node is not configured as a miner")
+            print("Start the node with --role miner to enable mining")
+            return None
+        else:
+            print(f"\nERROR: Mining failed with status code {response.status_code}")
+            print(f"Response: {response.text}")
+            return None
+
+    except requests.exceptions.ConnectionError:
+        print(f"\nERROR: Cannot connect to node at {node_url}")
+        print("Make sure the node is running (use run_node.py)")
+        return None
+    except requests.exceptions.Timeout:
+        print(f"\nERROR: Mining request timed out")
+        return None
+    except Exception as e:
+        print(f"\nERROR: {e}")
+        return None

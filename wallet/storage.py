@@ -149,3 +149,22 @@ def get_private_key_pem(label: str):
         return None
 
     return row[0]
+
+
+def update_account_balance(label: str, new_balance: float):
+    """Update the balance of an account."""
+    db_path = get_db_path(label)
+
+    if not db_path.exists():
+        print(f"ERROR: Account '{label}' not found")
+        return False
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE account SET balance = ? WHERE label = ?",
+            (new_balance, label)
+        )
+        conn.commit()
+
+    print(f"SUCCESS: Updated balance for '{label}' to {new_balance}")
+    return True
