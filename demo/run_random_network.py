@@ -1,5 +1,4 @@
 import random
-import shutil
 import signal
 import subprocess
 import sys
@@ -29,14 +28,14 @@ def clean_databases():
     db_dir = PARENT_DIR / "node" / "db"
     if db_dir.exists():
         print(f"Cleaning node database directory: {db_dir}")
-        shutil.rmtree(db_dir)
-        db_dir.mkdir()
+        for db_file in db_dir.glob("*.db"):
+            db_file.unlink()
         print("  Node database directory cleaned successfully")
 
     wallet_db_dir = PARENT_DIR / "wallet" / "db"
     if wallet_db_dir.exists():
         print(f"Cleaning wallet database directory: {wallet_db_dir}")
-        for db_file in wallet_db_dir.glob("node_*.db"):
+        for db_file in wallet_db_dir.glob("*.db"):
             db_file.unlink()
         print("  Wallet database directory cleaned successfully")
 

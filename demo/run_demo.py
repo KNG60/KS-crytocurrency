@@ -3,6 +3,11 @@ import sys
 import time
 from pathlib import Path
 
+import requests
+
+from node.transactions import Transaction, SignedTransaction
+from wallet.storage import get_account_details
+
 PARENT_DIR = Path(__file__).parent.parent
 
 ALICE_NODE_PORT = 5001
@@ -59,16 +64,26 @@ def run_cmd(cmd, password=None):
     return proc.returncode
 
 
+def clean_databases():
+    db_dir = PARENT_DIR / "node" / "db"
+    if db_dir.exists():
+        print(f"Cleaning node database directory: {db_dir}")
+        for db_file in db_dir.glob("*.db"):
+            db_file.unlink()
+        print("  Node database directory cleaned successfully")
+
+    wallet_db_dir = PARENT_DIR / "wallet" / "db"
+    if wallet_db_dir.exists():
+        print(f"Cleaning wallet database directory: {wallet_db_dir}")
+        for db_file in wallet_db_dir.glob("*.db"):
+            db_file.unlink()
+        print("  Wallet database directory cleaned successfully")
+
+
 def demo_wallet():
     print("\n" + "=" * 70)
     print("PART 1: WALLET OPERATIONS")
     print("=" * 70)
-
-    wallet_db_dir = PARENT_DIR / "wallet" / "db"
-    if wallet_db_dir.exists():
-        for db_file in wallet_db_dir.glob("*.db"):
-            db_file.unlink()
-        print("Cleaned up previous databases\n")
 
     print("1. Creating accounts (alice, bob, charlie)...")
     for name in ["alice", "bob", "charlie"]:
@@ -99,7 +114,7 @@ def demo_transactions():
     start_node("bob", BOB_NODE_PORT, role="miner", seeds=f"127.0.0.1:{ALICE_NODE_PORT}")
 
     print("   Waiting for nodes to initialize and connect...")
-    time.sleep(3)
+    time.sleep(2)
 
     print("\n2. Checking initial account states (should be 0)...")
     run_cmd(f"show alice --node http://127.0.0.1:{ALICE_NODE_PORT}")
@@ -133,15 +148,90 @@ def demo_transactions():
     run_cmd(f"show bob --node http://127.0.0.1:{BOB_NODE_PORT}")
 
 
+def demo_signature_validation():
+    print("\n" + "=" * 70)
+    print("PART 3: SIGNATURE VALIDATION (INVALID TRANSACTIONS)")
+    print("=" * 70)
+
+    print("\n1. Trying to create transaction with insufficient balance...")
+    print("   Alice tries to send 1000 coins (more than she has)...")
+    run_cmd(f"create-tx alice bob 1000.0 --node http://127.0.0.1:{ALICE_NODE_PORT}", password="demo123")
+
+    print("\n2. Sending transaction with invalid txid via HTTP...")
+
+    alice_account = get_account_details("alice")
+    bob_account = get_account_details("bob")
+
+    alice_pubkey = alice_account['pubkey_hex']
+    bob_pubkey = bob_account['pubkey_hex']
+
+    fake_tx_invalid = Transaction(
+        sender=alice_pubkey,
+        recipient=bob_pubkey,
+        amount=100.0,
+        timestamp=int(time.time()),
+        prev_txid=None
+    )
+    signed_fake_invalid = SignedTransaction(fake_tx_invalid, "deadbeef" * 16)
+    fake_tx_dict = signed_fake_invalid.to_dict()
+    fake_tx_dict["txid"] = "1" * 64  # Podmiana na nieprawidłowy TXID
+
+    response = requests.post(
+        f"http://127.0.0.1:{ALICE_NODE_PORT}/transactions",
+        json=fake_tx_dict,
+        timeout=5
+    )
+    if response.ok:
+        print("   ⚠ Transaction was accepted into mempool (will be validated during mining)")
+        print(f"   Response: {response.text}")
+    else:
+        print(f"   ✓ Transaction rejected by node - CORRECT")
+        print(f"   Error: {response.status_code} - {response.text}")
+
+    print("\n3. Sending transaction with fake signature via HTTP...")
+
+    fake_tx_valid_txid = Transaction(
+        sender=alice_pubkey,
+        recipient=bob_pubkey,
+        amount=50.0,
+        timestamp=int(time.time()),
+        prev_txid=None
+    )
+    signed_fake_valid = SignedTransaction(fake_tx_valid_txid, "cafebabe" * 16)
+    fake_sig_dict = signed_fake_valid.to_dict()
+
+    response = requests.post(
+        f"http://127.0.0.1:{ALICE_NODE_PORT}/transactions",
+        json=fake_sig_dict,
+        timeout=5
+    )
+    if response.ok:
+        print("   ⚠ Transaction was accepted into mempool (will be validated during mining)")
+        print(f"   Response: {response.text}")
+    else:
+        print(f"   ✓ Transaction rejected by node - CORRECT")
+        print(f"   Error: {response.status_code} - {response.text}")
+
+    print("\n4. Mining a block to see if invalid transactions are rejected...")
+    run_cmd(f"mine --node http://127.0.0.1:{ALICE_NODE_PORT}")
+
+    print("\n5. Checking balances (should not include fake transactions)...")
+    run_cmd(f"show alice --node http://127.0.0.1:{ALICE_NODE_PORT}")
+    run_cmd(f"show bob --node http://127.0.0.1:{BOB_NODE_PORT}")
+
+
 def main():
     print("\n" + "#" * 70)
     print("# FULL DEMO")
     print("#" * 70)
+    clean_databases()
 
     try:
         demo_wallet()
 
         demo_transactions()
+
+        demo_signature_validation()
 
         print("\n" + "=" * 70)
         print("DEMO COMPLETED SUCCESSFULLY")

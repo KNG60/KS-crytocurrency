@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 MAX_PEERS = 5
 MAX_BOOTSTRAP_PEERS = 3
-DIFFICULTY = 5
+DIFFICULTY = 4
 
 
 class NodeServer:
@@ -249,7 +249,8 @@ class NodeServer:
             if self.add_transaction(signed_tx):
                 self.broadcast_transaction(data)
                 return jsonify({"status": "accepted", "txid": signed_tx.transaction.txid}), 201
-            return jsonify({"status": "already exists", "txid": signed_tx.transaction.txid}), 200
+
+            return jsonify({"status": "rejected", "txid": signed_tx.transaction.txid}), 400
 
     def bootstrap(self):
         logger.info(f"Bootstrapping node with {len(self.seed_peers)} seed peers")
