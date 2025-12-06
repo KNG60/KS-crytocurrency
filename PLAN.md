@@ -20,7 +20,7 @@
 - [ ] **Node:** Mechanizm kopania bloków i ustalania konsensusu (Proof-of-Work)
 - [x] **Node:** Dodawanie nagród dla górników (transakcje coinbase)
 - [x] **Node:** Weryfikacja transakcji (poprawność podpisu, wystarczające saldo, ochrona przed podwójnym wydatkowaniem)
-- [ ] **Node:** Obliczanie sald użytkowników na podstawie historii transakcji
+- [x] **Node:** Obliczanie sald użytkowników na podstawie historii transakcji
 
 ### **Etap 4: Kopanie asynchroniczne i obsługa forków**
 

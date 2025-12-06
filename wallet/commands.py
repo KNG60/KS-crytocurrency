@@ -11,37 +11,9 @@ from .storage import (
 )
 
 
-def calculate_balance_from_chain(pubkey_hex: str, node_url: str) -> float:
-    try:
-        response = requests.get(f"{node_url}/blocks", timeout=5)
-        if response.status_code != 200:
-            print(f"ERROR: Failed to fetch blockchain from {node_url}")
-            return 0.0
-
-        chain = response.json()
-        balance = 0.0
-
-        for block in chain:
-            txs = block.get('txs', [])
-            for tx in txs:
-                recipient = tx['recipient']
-                sender = tx['sender']
-                amount = float(tx['amount'])
-
-                if recipient == pubkey_hex:
-                    balance += amount
-
-                if sender == pubkey_hex:
-                    balance -= amount
-
-        return balance
-
-    except requests.exceptions.ConnectionError:
-        print(f"ERROR: Cannot connect to node at {node_url}")
-        return 0.0
-    except Exception as e:
-        print(f"ERROR: Failed to calculate balance: {e}")
-        return 0.0
+def get_balance(pubkey_hex: str, node_url: str) -> float:
+    response = requests.get(f"{node_url}/balance/{pubkey_hex}", timeout=5)
+    return float(response.text)
 
 
 def show_private_key(label: str):
@@ -67,7 +39,7 @@ def show_account_details(label: str, node_url: str):
     if account:
         print(f"\n=== ACCOUNT DETAILS: {account['label']} ===")
         print(f"ID: {account['id']}")
-        balance = calculate_balance_from_chain(account['pubkey_hex'], node_url)
+        balance = get_balance(account['pubkey_hex'], node_url)
         print(f"Balance: {balance}")
         print(f"Public Key: {account['pubkey_hex']}")
         print(f"Created: {account['created_at']}")
@@ -88,15 +60,6 @@ def create_transaction(sender_label: str, recipient_label: str, amount: float, n
 
     sender_pubkey = sender_account['pubkey_hex']
     recipient_pubkey = recipient_account['pubkey_hex']
-
-    try:
-        amount = float(amount)
-        if amount <= 0:
-            print("ERROR: Amount must be positive")
-            return None
-    except ValueError:
-        print("ERROR: Invalid amount")
-        return None
 
     tx = Transaction(
         sender=sender_pubkey,
@@ -139,13 +102,8 @@ def create_transaction(sender_label: str, recipient_label: str, amount: float, n
         else:
             print(f"✗ Transaction broadcast failed: {response.status_code}")
             print(f"Response: {response.text}")
-    except requests.exceptions.ConnectionError:
-        print(f"✗ Cannot connect to node at {node_url}")
-        print("Make sure the node is running")
     except Exception as e:
         print(f"✗ Broadcast error: {e}")
-
-    print("=========================\n")
 
     return tx_dict
 
@@ -185,14 +143,6 @@ def mine_block(node_url: str):
             print(f"\nERROR: Mining failed with status code {response.status_code}")
             print(f"Response: {response.text}")
             return None
-
-    except requests.exceptions.ConnectionError:
-        print(f"\nERROR: Cannot connect to node at {node_url}")
-        print("Make sure the node is running (use run_node.py)")
-        return None
-    except requests.exceptions.Timeout:
-        print(f"\nERROR: Mining request timed out")
-        return None
     except Exception as e:
         print(f"\nERROR: {e}")
         return None

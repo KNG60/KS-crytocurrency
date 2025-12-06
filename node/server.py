@@ -6,7 +6,7 @@ from typing import Set, Tuple
 
 from flask import Flask, Response, jsonify, request
 
-from node.blockchain import Block, Blockchain
+from node.blockchain import Block, Blockchain, calculate_balance
 from node.graph import NetworkGraphManager
 from node.network import NetworkClient
 from node.storage import ChainStorage, PeerStorage
@@ -115,7 +115,23 @@ class NodeServer:
     def add_transaction(self, signed_tx: SignedTransaction) -> bool:
         for tx in self.pending_transactions:
             if tx.signature == signed_tx.signature:
+                logger.warning("Transaction already in mempool")
                 return False
+
+        transaction = signed_tx.transaction
+
+        if transaction.sender is None:
+            logger.warning("Coinbase transaction rejected - coinbase can only be created during mining")
+            return False
+
+        chain = self.chain_storage.load_chain()
+
+        sender_public_key = transaction.sender
+        sender_balance = calculate_balance(chain, sender_public_key)
+        if sender_balance < transaction.amount:
+            logger.warning(f"Transaction rejected - Insufficient balance: {sender_balance} < {transaction.amount}")
+            return False
+
         self.pending_transactions.append(signed_tx)
         logger.info(f"Added transaction to mempool: {signed_tx.transaction.txid[:16]}...")
         return True
@@ -198,7 +214,10 @@ class NodeServer:
             last = self.chain_storage.get_last_block()
             prev = Block.from_dict(last) if last else None
 
-            if not self.blockchain.validate_block(incoming, prev):
+            chain = self.chain_storage.load_chain()
+            chain_with_incoming = chain + [incoming.to_dict()]
+
+            if not self.blockchain.validate_chain(chain_with_incoming):
                 local_height = prev.height if prev else -1
                 should_try_adopt = incoming.height >= local_height + 1
                 if should_try_adopt:
@@ -230,6 +249,12 @@ class NodeServer:
             self.network.broadcast_block(peers, new_block.to_dict())
 
             return jsonify(new_block.to_dict()), 200
+
+        @self.app.route('/balance/<public_key>', methods=['GET'])
+        def get_balance(public_key):
+            chain = self.chain_storage.load_chain()
+            balance = calculate_balance(chain, public_key)
+            return str(balance), 200
 
         @self.app.route('/transactions', methods=['GET'])
         def get_transactions():
