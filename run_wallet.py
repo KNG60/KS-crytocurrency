@@ -64,9 +64,6 @@ def main():
         show_private_key(args.label)
     elif args.command == 'create-tx':
         tx_dict = create_transaction(args.sender, args.recipient, args.amount, node_url=args.node)
-        if tx_dict:
-            print("\nTransaction JSON:")
-            print(json.dumps(tx_dict, indent=2))
     elif args.command == 'mine':
         block_dict = mine_block(args.node)
         if block_dict:

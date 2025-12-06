@@ -52,9 +52,11 @@ class NodeServer:
         if self.seed_peers:
             for seed in self.seed_peers:
                 host, port = seed.get('host'), int(seed.get('port'))
-                chain = self.network.fetch_chain_from_peer(host, port)
-                if chain and (best_chain is None or len(chain) > len(best_chain)):
-                    best_chain = chain
+                chain_dicts = self.network.fetch_chain_from_peer(host, port)
+                if chain_dicts:
+                    chain = [Block.from_dict(b) for b in chain_dicts]
+                    if best_chain is None or len(chain) > len(best_chain):
+                        best_chain = chain
 
         adopted = False
         if best_chain and len(best_chain) > local_len:
@@ -68,7 +70,7 @@ class NodeServer:
             self.chain_storage.save_block(genesis.to_dict())
             logger.info(f"Genesis created: h=0 hash={genesis.hash[:16]}...")
 
-    def _try_adopt_longer_chain(self, min_target_len: int | None = None) -> tuple[bool, int]:
+    def _try_adopt_longer_chain(self, min_target_len: int) -> tuple[bool, int]:
         local_len = len(self.chain_storage.load_chain())
         peers_set: set[tuple[str, int]] = set()
         for s in self.seed_peers or []:
@@ -87,9 +89,10 @@ class NodeServer:
 
         best_chain = None
         for host, port in peers_set:
-            chain = self.network.fetch_chain_from_peer(host, port)
-            if not chain:
+            chain_dicts = self.network.fetch_chain_from_peer(host, port)
+            if not chain_dicts:
                 continue
+            chain = [Block.from_dict(b) for b in chain_dicts]
             if best_chain is None or len(chain) > len(best_chain):
                 best_chain = chain
 
@@ -112,29 +115,25 @@ class NodeServer:
     def is_self_peer(self, peer_host: str, peer_port: int) -> bool:
         return peer_host == self.host and peer_port == self.port
 
-    def add_transaction(self, signed_tx: SignedTransaction) -> bool:
+    def add_transaction(self, signed_tx: SignedTransaction) -> None:
         for tx in self.pending_transactions:
             if tx.signature == signed_tx.signature:
-                logger.warning("Transaction already in mempool")
-                return False
+                raise ValueError("Transaction already in mempool")
 
         transaction = signed_tx.transaction
 
         if transaction.sender is None:
-            logger.warning("Coinbase transaction rejected - coinbase can only be created during mining")
-            return False
+            raise ValueError("Coinbase transaction rejected - coinbase can only be created during mining")
 
         chain = self.chain_storage.load_chain()
 
         sender_public_key = transaction.sender
         sender_balance = calculate_balance(chain, sender_public_key)
         if sender_balance < transaction.amount:
-            logger.warning(f"Transaction rejected - Insufficient balance: {sender_balance} < {transaction.amount}")
-            return False
+            raise ValueError(f"Insufficient balance: {sender_balance} < {transaction.amount}")
 
         self.pending_transactions.append(signed_tx)
         logger.info(f"Added transaction to mempool: {signed_tx.transaction.txid[:16]}...")
-        return True
 
     def broadcast_transaction(self, transaction: dict):
         peers = self.storage.get_all_peers()
@@ -199,7 +198,7 @@ class NodeServer:
         @self.app.route('/blocks', methods=['GET'])
         def get_blocks():
             chain = self.chain_storage.load_chain()
-            return jsonify(chain), 200
+            return jsonify([block.to_dict() for block in chain]), 200
 
         @self.app.route('/blocks', methods=['POST'])
         def receive_block():
@@ -215,7 +214,7 @@ class NodeServer:
             prev = Block.from_dict(last) if last else None
 
             chain = self.chain_storage.load_chain()
-            chain_with_incoming = chain + [incoming.to_dict()]
+            chain_with_incoming = chain + [incoming]
 
             if not self.blockchain.validate_chain(chain_with_incoming):
                 local_height = prev.height if prev else -1
@@ -271,11 +270,12 @@ class NodeServer:
             except Exception as e:
                 return jsonify({"error": f"invalid transaction: {e}"}), 400
 
-            if self.add_transaction(signed_tx):
+            try:
+                self.add_transaction(signed_tx)
                 self.broadcast_transaction(data)
                 return jsonify({"status": "accepted", "txid": signed_tx.transaction.txid}), 201
-
-            return jsonify({"status": "rejected", "txid": signed_tx.transaction.txid}), 400
+            except ValueError as e:
+                return jsonify({"status": "rejected", "txid": signed_tx.transaction.txid, "error": str(e)}), 400
 
     def bootstrap(self):
         logger.info(f"Bootstrapping node with {len(self.seed_peers)} seed peers")

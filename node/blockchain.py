@@ -13,11 +13,10 @@ from .utils import hash_dict
 MINING_REWARD = 50.0
 
 
-def calculate_balance(chain: List[Dict], public_key: str) -> float:
+def calculate_balance(chain: List["Block"], public_key: str) -> float:
     balance = 0.0
 
-    for block_dict in chain:
-        block = Block.from_dict(block_dict)
+    for block in chain:
         for signed_tx in block.txs:
             tx = signed_tx.transaction
 
@@ -163,13 +162,11 @@ class Blockchain:
         block_data["hash"] = h
         return Block.from_dict(block_data)
 
-    def validate_chain(self, chain: List[Dict]) -> bool:
+    def validate_chain(self, chain: List["Block"]) -> bool:
         prev: Optional[Block] = None
         balances: Dict[str, float] = {}
 
-        for b in chain:
-            blk = Block.from_dict(b)
-
+        for blk in chain:
             if not self.validate_block(blk, prev):
                 return False
 

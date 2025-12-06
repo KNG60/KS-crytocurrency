@@ -2,6 +2,9 @@ import json
 import sqlite3
 from typing import Dict, List, Tuple
 
+from node.blockchain import Block
+from node.transactions import serialize_signed_transactions
+
 
 class PeerStorage:
     def __init__(self, db_path: str):
@@ -52,6 +55,7 @@ class PeerStorage:
             row = cur.fetchone()
             return int(row[0])
 
+
 class ChainStorage:
     def __init__(self, db_path: str):
         self.db_path = db_path
@@ -95,7 +99,8 @@ class ChainStorage:
             )
             conn.commit()
 
-    def replace_chain(self, chain: List[Dict]):
+    def replace_chain(self, chain: List[Block]):
+
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
             try:
@@ -108,14 +113,14 @@ class ChainStorage:
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         ''',
                         (
-                            int(block["height"]),
-                            str(block["prev_hash"]),
-                            int(block["timestamp"]),
-                            json.dumps(block.get("txs") or []),
-                            int(block["nonce"]),
-                            int(block["difficulty"]),
-                            str(block.get("miner", "")),
-                            str(block["hash"]),
+                            block.height,
+                            block.prev_hash,
+                            block.timestamp,
+                            json.dumps(serialize_signed_transactions(block.txs)),
+                            block.nonce,
+                            block.difficulty,
+                            block.miner,
+                            block.hash,
                         ),
                     )
                 conn.commit()
@@ -123,26 +128,26 @@ class ChainStorage:
                 conn.rollback()
                 raise
 
-    def load_chain(self) -> List[Dict]:
+    def load_chain(self) -> List[Block]:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.execute(
                 'SELECT height, prev_hash, timestamp, txs_json, nonce, difficulty, miner, hash FROM blocks ORDER BY height ASC'
             )
             rows = cur.fetchall()
-        chain: List[Dict] = []
+
+        chain = []
         for r in rows:
-            chain.append(
-                {
-                    "height": int(r[0]),
-                    "prev_hash": r[1],
-                    "timestamp": int(r[2]),
-                    "txs": json.loads(r[3]),
-                    "nonce": int(r[4]),
-                    "difficulty": int(r[5]),
-                    "miner": r[6],
-                    "hash": r[7],
-                }
-            )
+            block_dict = {
+                "height": int(r[0]),
+                "prev_hash": r[1],
+                "timestamp": int(r[2]),
+                "txs": json.loads(r[3]),
+                "nonce": int(r[4]),
+                "difficulty": int(r[5]),
+                "miner": r[6],
+                "hash": r[7],
+            }
+            chain.append(Block.from_dict(block_dict))
         return chain
 
     def get_last_block(self) -> Dict | None:
