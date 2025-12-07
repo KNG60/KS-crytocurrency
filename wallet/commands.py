@@ -66,7 +66,6 @@ def create_transaction(sender_label: str, recipient_label: str, amount: float, n
         recipient=recipient_pubkey,
         amount=amount,
         timestamp=int(time.time()),
-        prev_txid=None
     )
 
     pem_blob = get_private_key_pem(sender_label)
@@ -119,22 +118,9 @@ def mine_block(node_url: str):
         elapsed = time.time() - start_time
 
         if response.status_code == 200:
-            block_data = response.json()
             print(f"\n✓ Block mined successfully!")
-            print(f"Block Hash: {block_data.get('hash')}")
-            print(f"Block Height: {block_data.get('height')}")
-            print(f"Nonce: {block_data.get('nonce')}")
-            print(f"Miner: {block_data.get('miner', '')[:20]}...{block_data.get('miner', '')[-10:]}")
             print(f"Time taken: {elapsed:.2f} seconds")
-
-            txs = block_data.get('txs', [])
-            if txs:
-                coinbase_tx = txs[0]
-                print(f"Coinbase TX ID: {coinbase_tx.get('txid')}")
-                print(f"Mining Reward: {coinbase_tx.get('amount')} coins")
-
-            print("===================================\n")
-            return block_data
+            return response.json()
         elif response.status_code == 403:
             print(f"\nERROR: Node is not configured as a miner")
             print("Start the node with --role miner to enable mining")

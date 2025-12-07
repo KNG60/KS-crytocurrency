@@ -148,16 +148,14 @@ def demo_transactions():
     run_cmd(f"show bob --node http://127.0.0.1:{BOB_NODE_PORT}")
 
 
-def demo_signature_validation():
+def demo_invalid_transactions():
     print("\n" + "=" * 70)
-    print("PART 3: SIGNATURE VALIDATION (INVALID TRANSACTIONS)")
+    print("PART 3: INVALID TRANSACTIONS")
     print("=" * 70)
 
     print("\n1. Trying to create transaction with insufficient balance...")
     print("   Alice tries to send 1000 coins (more than she has)...")
     run_cmd(f"create-tx alice bob 1000.0 --node http://127.0.0.1:{ALICE_NODE_PORT}", password="demo123")
-
-    print("\n2. Sending transaction with invalid txid via HTTP...")
 
     alice_account = get_account_details("alice")
     bob_account = get_account_details("bob")
@@ -165,16 +163,41 @@ def demo_signature_validation():
     alice_pubkey = alice_account['pubkey_hex']
     bob_pubkey = bob_account['pubkey_hex']
 
+    print("\n2. Trying to bypass validation by sending negative amount via HTTP...")
+
+    fake_tx_negative = Transaction(
+        sender=alice_pubkey,
+        recipient=bob_pubkey,
+        amount=50.0,
+        timestamp=int(time.time()),
+    )
+    signed_fake_negative = SignedTransaction(fake_tx_negative, "deadbeef" * 16)
+    fake_negative_dict = signed_fake_negative.to_dict()
+    fake_negative_dict["amount"] = -50.0
+
+    response = requests.post(
+        f"http://127.0.0.1:{ALICE_NODE_PORT}/transactions",
+        json=fake_negative_dict,
+        timeout=5
+    )
+    if response.ok:
+        print("   ✗ PROBLEM: Transaction with negative amount was accepted!")
+        print(f"   Response: {response.text}")
+    else:
+        print(f"   ✓ Transaction rejected by node - CORRECT")
+        print(f"   Error: {response.status_code} - {response.text}")
+
+    print("\n3. Sending transaction with invalid txid via HTTP...")
+
     fake_tx_invalid = Transaction(
         sender=alice_pubkey,
         recipient=bob_pubkey,
         amount=100.0,
         timestamp=int(time.time()),
-        prev_txid=None
     )
     signed_fake_invalid = SignedTransaction(fake_tx_invalid, "deadbeef" * 16)
     fake_tx_dict = signed_fake_invalid.to_dict()
-    fake_tx_dict["txid"] = "1" * 64  # Podmiana na nieprawidłowy TXID
+    fake_tx_dict["txid"] = "1" * 64
 
     response = requests.post(
         f"http://127.0.0.1:{ALICE_NODE_PORT}/transactions",
@@ -182,20 +205,19 @@ def demo_signature_validation():
         timeout=5
     )
     if response.ok:
-        print("   ⚠ Transaction was accepted into mempool (will be validated during mining)")
+        print("   ⚠ PROBLEM: Transaction was accepted into mempool")
         print(f"   Response: {response.text}")
     else:
         print(f"   ✓ Transaction rejected by node - CORRECT")
         print(f"   Error: {response.status_code} - {response.text}")
 
-    print("\n3. Sending transaction with fake signature via HTTP...")
+    print("\n4. Sending transaction with fake signature via HTTP...")
 
     fake_tx_valid_txid = Transaction(
         sender=alice_pubkey,
         recipient=bob_pubkey,
         amount=50.0,
         timestamp=int(time.time()),
-        prev_txid=None
     )
     signed_fake_valid = SignedTransaction(fake_tx_valid_txid, "cafebabe" * 16)
     fake_sig_dict = signed_fake_valid.to_dict()
@@ -206,16 +228,16 @@ def demo_signature_validation():
         timeout=5
     )
     if response.ok:
-        print("   ⚠ Transaction was accepted into mempool (will be validated during mining)")
+        print("   ⚠ PROBLEM: Transaction was accepted into mempool")
         print(f"   Response: {response.text}")
     else:
         print(f"   ✓ Transaction rejected by node - CORRECT")
         print(f"   Error: {response.status_code} - {response.text}")
 
-    print("\n4. Mining a block to see if invalid transactions are rejected...")
+    print("\n5. Mining a block to see if invalid transactions are rejected...")
     run_cmd(f"mine --node http://127.0.0.1:{ALICE_NODE_PORT}")
 
-    print("\n5. Checking balances (should not include fake transactions)...")
+    print("\n6. Checking balances (should not include fake transactions)...")
     run_cmd(f"show alice --node http://127.0.0.1:{ALICE_NODE_PORT}")
     run_cmd(f"show bob --node http://127.0.0.1:{BOB_NODE_PORT}")
 
@@ -231,7 +253,7 @@ def main():
 
         demo_transactions()
 
-        demo_signature_validation()
+        demo_invalid_transactions()
 
         print("\n" + "=" * 70)
         print("DEMO COMPLETED SUCCESSFULLY")

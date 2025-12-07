@@ -97,7 +97,6 @@ class Blockchain:
             recipient=recipient,
             amount=amount,
             timestamp=int(time.time()),
-            prev_txid=None
         )
         return SignedTransaction(transaction, signature=COINBASE_SIGNATURE)
 
@@ -180,5 +179,6 @@ class Blockchain:
                     balances[tx.sender] = sender_balance - tx.amount
 
                 balances[tx.recipient] = balances.get(tx.recipient, 0.0) + tx.amount
+
             prev = blk
         return True

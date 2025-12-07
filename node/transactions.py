@@ -16,7 +16,6 @@ class Transaction:
             recipient: str,
             amount: float,
             timestamp: int,
-            prev_txid: Optional[str] = None,
     ) -> None:
         if amount <= 0:
             raise ValueError("Amount must be positive")
@@ -24,7 +23,6 @@ class Transaction:
         self.sender = sender
         self.recipient = recipient
         self.amount = amount
-        self.prev_txid = prev_txid
         self.timestamp = timestamp
 
     @property
@@ -33,7 +31,6 @@ class Transaction:
             "sender": self.sender,
             "recipient": self.recipient,
             "amount": self.amount,
-            "prev_txid": self.prev_txid,
             "timestamp": self.timestamp,
         })
 
@@ -44,7 +41,6 @@ class Transaction:
             "sender": self.sender,
             "recipient": self.recipient,
             "amount": self.amount,
-            "prev_txid": self.prev_txid,
         }
 
     @classmethod
@@ -56,7 +52,6 @@ class Transaction:
             recipient=str(data["recipient"]),
             amount=float(data["amount"]),
             timestamp=int(data["timestamp"]),
-            prev_txid=str(data["prev_txid"]) if data["prev_txid"] is not None else None,
         )
 
         if provided_txid and str(provided_txid) != tx.txid:
