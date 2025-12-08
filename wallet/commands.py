@@ -93,7 +93,7 @@ def create_transaction(sender_label: str, recipient_label: str, amount: float, n
 
     print(f"\nBroadcasting to node: {node_url}")
     try:
-        response = requests.post(f"{node_url}/transactions", json=tx_dict, timeout=5)
+        response = requests.post(f"{node_url}/transactions", json=tx_dict, timeout=60)
         if response.status_code in [200, 201]:
             result = response.json()
             print(f"✓ Transaction broadcast successful!")

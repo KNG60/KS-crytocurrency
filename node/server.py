@@ -1,13 +1,16 @@
 import logging
 import os
 import random
+import re
+import time
 from threading import Thread
 from typing import Set, Tuple
 
-from flask import Flask, Response, jsonify, request
+import requests
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 
-from node.blockchain import Block, Blockchain, calculate_balance
-from node.graph import NetworkGraphManager
+from node.blockchain import Block, Blockchain, calculate_balance_with_mempool
 from node.network import NetworkClient
 from node.storage import ChainStorage, PeerStorage
 from node.transactions import SignedTransaction
@@ -20,7 +23,8 @@ DIFFICULTY = 4
 
 
 class NodeServer:
-    def __init__(self, host: str, port: int, seed_peers: list, *, role: str = "normal", public_key: str):
+    def __init__(self, host: str, port: int, seed_peers: list, *, role: str = "normal", public_key: str,
+                 centralized_manager_url: str = None):
         self.host = host
         self.port = port
         self.public_key = public_key
@@ -35,20 +39,70 @@ class NodeServer:
         self.storage = PeerStorage(peers_db_path)
         self.network = NetworkClient()
         self.seed_peers = seed_peers
-        self.graph_manager = NetworkGraphManager(host, port, self.storage, self.network)
-        self.app = Flask(__name__, static_folder='../static', static_url_path='/static')
-        self._setup_routes()
         self.role = role
         self.blockchain = Blockchain(DIFFICULTY)
         self.chain_storage = ChainStorage(chain_db_path)
         self.pending_transactions: list[SignedTransaction] = []
+        self.centralized_manager_url = centralized_manager_url
+        self.app = Flask(__name__, static_folder='../static', static_url_path='/static')
+        CORS(self.app, resources={
+            "/*": {"origins": [re.compile(r"^http://127.0.0.1:\d+$")]}
+        })
+
+        self._setup_routes()
         self._init_chain()
+
+        if self.centralized_manager_url:
+            Thread(target=self._register_with_centralized_manager, daemon=True).start()
+
+    def _register_with_centralized_manager(self):
+        time.sleep(2)
+        max_retries = 10
+        retry_delay = 0.5
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    f"{self.centralized_manager_url}/register-node",
+                    json={"host": self.host, "port": self.port},
+                    timeout=10
+                )
+                if response.status_code == 201:
+                    logger.info(f"Registered with graph manager at {self.centralized_manager_url}")
+                    return
+                else:
+                    logger.warning(f"Failed to register: HTTP {response.status_code}")
+            except requests.exceptions.ConnectionError as e:
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                else:
+                    logger.warning(f"Could not register with manager after {max_retries} attempts: connection error")
+            except requests.exceptions.Timeout as e:
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                else:
+                    logger.warning(f"Could not register with manager after {max_retries} attempts: timeout")
+            except Exception as e:
+                logger.error(f"Unexpected error during registration: {type(e).__name__}: {e}")
+                return
+
+    def _notify_centralized_manager(self):
+        if self.centralized_manager_url:
+            try:
+                requests.post(
+                    f"{self.centralized_manager_url}/notify",
+                    timeout=1
+                )
+            except Exception as e:
+                logger.debug(f"Could not notify centralized manager: {e}")
 
     def _init_chain(self):
         local_chain = self.chain_storage.load_chain()
         local_len = len(local_chain)
 
         best_chain = None
+        best_peer_host = None
+        best_peer_port = None
+
         if self.seed_peers:
             for seed in self.seed_peers:
                 host, port = seed.get('host'), int(seed.get('port'))
@@ -57,13 +111,28 @@ class NodeServer:
                     chain = [Block.from_dict(b) for b in chain_dicts]
                     if best_chain is None or len(chain) > len(best_chain):
                         best_chain = chain
+                        best_peer_host = host
+                        best_peer_port = port
 
         adopted = False
         if best_chain and len(best_chain) > local_len:
             if self.blockchain.validate_chain(best_chain):
                 self.chain_storage.replace_chain(best_chain)
+                for block in best_chain:
+                    self.remove_transactions_from_mempool(block)
                 logger.info(f"Adopted longer chain from seed: {len(best_chain)} blocks (local had {local_len})")
                 adopted = True
+
+                if best_peer_host and best_peer_port:
+                    tx_dicts = self.network.fetch_pending_transactions_from_peer(best_peer_host, best_peer_port)
+                    if tx_dicts:
+                        for tx_dict in tx_dicts:
+                            try:
+                                signed_tx = SignedTransaction.from_dict(tx_dict)
+                                self.add_transaction(signed_tx)
+                            except Exception as e:
+                                logger.warning(f"Failed to add transaction from peer mempool: {e}")
+                        logger.info(f"Synchronized {len(self.pending_transactions)} transactions from peer mempool")
 
         if not adopted and local_len == 0:
             genesis = self.blockchain.create_genesis()
@@ -109,6 +178,10 @@ class NodeServer:
             return (False, local_len)
 
         self.chain_storage.replace_chain(best_chain)
+
+        for block in best_chain:
+            self.remove_transactions_from_mempool(block)
+
         logger.info(f"Runtime adoption: replaced local chain ({local_len}) with longer chain ({target_len})")
         return (True, target_len)
 
@@ -128,16 +201,33 @@ class NodeServer:
         chain = self.chain_storage.load_chain()
 
         sender_public_key = transaction.sender
-        sender_balance = calculate_balance(chain, sender_public_key)
+        sender_balance = calculate_balance_with_mempool(chain, sender_public_key, self.pending_transactions)
         if sender_balance < transaction.amount:
             raise ValueError(f"Insufficient balance: {sender_balance} < {transaction.amount}")
 
         self.pending_transactions.append(signed_tx)
-        logger.info(f"Added transaction to mempool: {signed_tx.transaction.txid[:16]}...")
+        logger.info(
+            f"Added transaction to mempool: {signed_tx.transaction.txid[:16]}... (mempool size: {len(self.pending_transactions)})")
 
     def broadcast_transaction(self, transaction: dict):
         peers = self.storage.get_all_peers()
         self.network.broadcast_transaction(peers, transaction)
+
+    def remove_transactions_from_mempool(self, block: Block):
+        block_txids = {tx.transaction.txid for tx in block.txs}
+
+        original_count = len(self.pending_transactions)
+        self.pending_transactions = [
+            tx for tx in self.pending_transactions
+            if tx.transaction.txid not in block_txids
+        ]
+        removed_count = original_count - len(self.pending_transactions)
+
+        if removed_count > 0:
+            logger.info(f"Removed {removed_count} transactions from mempool (found in new block)")
+            self._notify_centralized_manager()
+
+        return removed_count
 
     def _remove_inactive_peers(self):
         peer_list = self.storage.get_all_peers()
@@ -146,7 +236,7 @@ class NodeServer:
             if not self.network.ping_peer(peer_host, peer_port):
                 logger.info(f"Removing inactive peer {peer_host}:{peer_port}")
                 self.storage.remove_peer(peer_host, peer_port)
-                self.graph_manager.notify_graph_change()
+                self._notify_centralized_manager()
 
     def _setup_routes(self):
         @self.app.route('/ping', methods=['GET'])
@@ -157,14 +247,6 @@ class NodeServer:
         def get_peers():
             peers = self.storage.get_all_peers()
             return jsonify(peers), 200
-
-        @self.app.route('/network-graph', methods=['GET'])
-        def network_graph():
-            return jsonify(self.graph_manager.get_network_graph_data()), 200
-
-        @self.app.route('/network-stream', methods=['GET'])
-        def network_stream():
-            return Response(self.graph_manager.create_sse_event_stream(), mimetype='text/event-stream')
 
         @self.app.route('/peers', methods=['POST'])
         def add_peer():
@@ -191,7 +273,7 @@ class NodeServer:
 
             logger.info(f"Accepting peer registration from {peer_host}:{peer_port}")
             self.storage.add_peer(peer_host, peer_port)
-            self.graph_manager.notify_graph_change()
+            self._notify_centralized_manager()
 
             return jsonify({"host": peer_host, "port": peer_port}), 201
 
@@ -222,13 +304,20 @@ class NodeServer:
                 if should_try_adopt:
                     adopted, new_len = self._try_adopt_longer_chain(min_target_len=incoming.height + 1)
                     if adopted:
+                        self.remove_transactions_from_mempool(incoming)
+                        self._notify_centralized_manager()
                         return jsonify({"status": "reorganized", "height": new_len - 1}), 201
                 return jsonify({"error": "invalid block"}), 400
 
             self.chain_storage.save_block(incoming.to_dict())
 
+            self.remove_transactions_from_mempool(incoming)
+
             peers = self.storage.get_all_peers()
             self.network.broadcast_block(peers, incoming.to_dict())
+
+            self._notify_centralized_manager()
+
             return jsonify({"status": "accepted", "height": incoming.height}), 201
 
         @self.app.route('/mine', methods=['POST'])
@@ -247,13 +336,27 @@ class NodeServer:
             peers = self.storage.get_all_peers()
             self.network.broadcast_block(peers, new_block.to_dict())
 
+            self._notify_centralized_manager()
+
             return jsonify(new_block.to_dict()), 200
 
         @self.app.route('/balance/<public_key>', methods=['GET'])
         def get_balance(public_key):
             chain = self.chain_storage.load_chain()
-            balance = calculate_balance(chain, public_key)
+            balance = calculate_balance_with_mempool(chain, public_key, self.pending_transactions)
             return str(balance), 200
+
+        @self.app.route('/info', methods=['GET'])
+        def get_info():
+            chain = self.chain_storage.load_chain()
+            balance = calculate_balance_with_mempool(chain, self.public_key, self.pending_transactions)
+            return jsonify({
+                "public_key": self.public_key,
+                "balance": balance,
+                "role": self.role,
+                "chain": [block.to_dict() for block in chain],
+                "pending_transactions": [tx.to_dict() for tx in self.pending_transactions]
+            }), 200
 
         @self.app.route('/transactions', methods=['GET'])
         def get_transactions():
@@ -273,8 +376,9 @@ class NodeServer:
             try:
                 self.add_transaction(signed_tx)
                 self.broadcast_transaction(data)
+                self._notify_centralized_manager()
                 return jsonify({"status": "accepted", "txid": signed_tx.transaction.txid}), 201
-            except ValueError as e:
+            except Exception as e:
                 return jsonify({"status": "rejected", "txid": signed_tx.transaction.txid, "error": str(e)}), 400
 
     def bootstrap(self):
@@ -304,7 +408,7 @@ class NodeServer:
                 self.storage.add_peer(host, port)
                 successes += 1
                 logger.info(f"Registered with peer {host}:{port} ({successes}/{MAX_BOOTSTRAP_PEERS})")
-                self.graph_manager.notify_graph_change()
+                self._notify_centralized_manager()
 
                 if successes >= MAX_BOOTSTRAP_PEERS:
                     break

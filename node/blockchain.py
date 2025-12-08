@@ -13,7 +13,11 @@ from .utils import hash_dict
 MINING_REWARD = 50.0
 
 
-def calculate_balance(chain: List["Block"], public_key: str) -> float:
+def calculate_balance_with_mempool(
+        chain: List["Block"],
+        public_key: str,
+        pending_transactions: List[SignedTransaction]
+) -> float:
     balance = 0.0
 
     for block in chain:
@@ -25,6 +29,15 @@ def calculate_balance(chain: List["Block"], public_key: str) -> float:
 
             if tx.sender == public_key:
                 balance -= tx.amount
+
+    for signed_tx in pending_transactions:
+        tx = signed_tx.transaction
+
+        if tx.sender == public_key:
+            balance -= tx.amount
+
+        if tx.recipient == public_key:
+            balance += tx.amount
 
     return balance
 

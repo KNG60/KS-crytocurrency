@@ -33,6 +33,8 @@ def main():
                         help='"normal" for regular node, "miner" for mining node')
     parser.add_argument('--wallet-label', type=str, required=True,
                         help='Label of account in wallet to use for public key')
+    parser.add_argument('--centralized-manager', type=str, default=None,
+                        help='URL of centralized graph manager (e.g., http://127.0.0.1:8080)')
 
     args = parser.parse_args()
 
@@ -45,7 +47,8 @@ def main():
         port=args.port,
         seed_peers=seed_peers,
         role=args.role,
-        public_key=public_key
+        public_key=public_key,
+        centralized_manager_url=args.centralized_manager
     )
 
     server.run()

@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 class NetworkClient:
-    def __init__(self, timeout: int = 5):
+    def __init__(self, timeout: int = 10):
         self.timeout = timeout
 
     def register_as_inbound_peer(self, peer_host: str, peer_port: int, own_host: str, own_port: int) -> bool:
@@ -60,8 +60,8 @@ class NetworkClient:
                 return True
             logger.warning(f"Peer {peer_host}:{peer_port} rejected block: {r.status_code} {r.text}")
             return False
-        except requests.ConnectionError:
-            logger.warning(f"Peer {peer_host}:{peer_port} is unreachable for block submit")
+        except Exception as e:
+            logger.warning(f"Peer {peer_host}:{peer_port} failed: {e}")
             return False
 
     def broadcast_block(self, peers: List[Dict], block: Dict):
@@ -105,4 +105,21 @@ class NetworkClient:
             return data
         except requests.ConnectionError:
             logger.warning(f"Peer {peer_host}:{peer_port} is unreachable for chain fetch")
+            return None
+
+    def fetch_pending_transactions_from_peer(self, peer_host: str, peer_port: int) -> Optional[List[Dict]]:
+        url = f"http://{peer_host}:{peer_port}/transactions"
+        try:
+            r = requests.get(url, timeout=self.timeout)
+            if r.status_code != 200:
+                logger.warning(f"Failed to fetch transactions from {peer_host}:{peer_port}: {r.status_code}")
+                return None
+            data = r.json()
+            if not isinstance(data, list):
+                logger.warning(f"Invalid /transactions response format from {peer_host}:{peer_port}")
+                return None
+            logger.info(f"Fetched {len(data)} pending transactions from {peer_host}:{peer_port}")
+            return data
+        except requests.ConnectionError:
+            logger.warning(f"Peer {peer_host}:{peer_port} is unreachable for transactions fetch")
             return None

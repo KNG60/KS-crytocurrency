@@ -11,12 +11,13 @@ PARENT_DIR = Path(__file__).parent.parent
 
 HOST = "127.0.0.1"
 START_PORT = 5000
-MIN_NODES = 5
-MAX_NODES = 10
+MIN_NODES = 15
+MAX_NODES = 20
 MIN_SEEDS = 1
 MAX_SEEDS = 5
 MINER_PROBABILITY = 0.8
-MINE_OPERATIONS_COUNT = 5
+MINE_OPERATIONS_COUNT = 3
+CENTRALIZED_MANAGER_PORT = 8080
 
 
 def kill_node_processes():
@@ -59,18 +60,51 @@ class NetworkManager:
         self.processes = []
         self.node_ports = []
         self.miner_ports = []
+        self.centralized_manager_process = None
 
     def cleanup(self, signum=None, frame=None):
         print("\n\nShutting down all nodes...")
         for proc in self.processes:
             proc.terminate()
 
+        if self.centralized_manager_process:
+            print("Shutting down centralized graph manager...")
+            self.centralized_manager_process.terminate()
+
         print("All nodes stopped.")
         sys.exit(0)
+
+    def start_centralized_manager(self):
+        print("Starting network graph manager on port", CENTRALIZED_MANAGER_PORT)
+        print(f"  http://{HOST}:{CENTRALIZED_MANAGER_PORT}/static/network.html")
+
+        cmd = [
+            sys.executable,
+            "-c",
+            f"from node.graph_manager import CentralizedGraphManager; "
+            f"import logging; "
+            f"logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'); "
+            f"manager = CentralizedGraphManager('{HOST}', {CENTRALIZED_MANAGER_PORT}); "
+            f"manager.run()"
+        ]
+
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(PARENT_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        self.centralized_manager_process = proc
+        time.sleep(1)
+        return proc
 
     def start_node(self, port, seed_peers=None, is_miner=False):
         node_index = port - START_PORT
         wallet_label = create_node_account(node_index)
+
+        centralized_manager_url = f"http://{HOST}:{CENTRALIZED_MANAGER_PORT}"
 
         cmd = [
             sys.executable,
@@ -78,7 +112,8 @@ class NetworkManager:
             "--host", HOST,
             "--port", str(port),
             "--role", "miner" if is_miner else "normal",
-            "--wallet-label", wallet_label
+            "--wallet-label", wallet_label,
+            "--centralized-manager", centralized_manager_url
         ]
 
         if seed_peers:
@@ -143,12 +178,6 @@ class NetworkManager:
 
         if self.miner_ports:
             print(f"\nMiner ports: {self.miner_ports}")
-
-        print("\nAccess network visualization:")
-        for port in self.node_ports[:3]:
-            print(f"  http://localhost:{port}/static/network.html")
-        if len(self.node_ports) > 3:
-            print(f"  ... and {len(self.node_ports) - 3} more")
 
         print("=" * 70 + "\n")
 
@@ -216,6 +245,10 @@ def main():
     signal.signal(signal.SIGTERM, manager.cleanup)
 
     try:
+        manager.start_centralized_manager()
+
+        time.sleep(2)
+
         manager.create_random_network()
 
         print("Waiting for network to stabilize...")

@@ -63,7 +63,7 @@ def main():
     elif args.command == 'show-priv':
         show_private_key(args.label)
     elif args.command == 'create-tx':
-        tx_dict = create_transaction(args.sender, args.recipient, args.amount, node_url=args.node)
+        create_transaction(args.sender, args.recipient, args.amount, node_url=args.node)
     elif args.command == 'mine':
         block_dict = mine_block(args.node)
         if block_dict:
