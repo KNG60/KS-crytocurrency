@@ -81,7 +81,7 @@ class NetworkManager:
         cmd = [
             sys.executable,
             "-c",
-            f"from node.graph_manager import CentralizedGraphManager; "
+            f"from demo.graph_manager import CentralizedGraphManager; "
             f"import logging; "
             f"logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'); "
             f"manager = CentralizedGraphManager('{HOST}', {CENTRALIZED_MANAGER_PORT}); "

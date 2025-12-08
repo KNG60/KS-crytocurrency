@@ -60,17 +60,6 @@
             font-size: 16px;
         }
 
-        #node-popup .info-row {
-            margin: 5px 0;
-            font-size: 14px;
-        }
-
-        #node-popup .info-label {
-            font-weight: bold;
-            display: inline-block;
-            width: 150px;
-        }
-
         #node-popup button {
             margin-top: 10px;
             padding: 8px 16px;
@@ -220,12 +209,17 @@
         .transaction-section select,
         .transaction-section input {
             width: 100%;
-        < span > Active Node < / span > margin: 5 px 0 10 px 0;
+            margin: 5px 0 10px 0;
+            padding: 8px;
             border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 13px;
+            box-sizing: border-box;
         }
 
         .transaction-section button {
-        < span style = "font-size: 11px; color: #666;" > Shift + Click to select nodes for transaction < / span > padding: 10 px;
+            width: 100%;
+            padding: 10px;
             background: #2196F3;
             color: white;
             border: none;
@@ -286,8 +280,6 @@
     }
 
     let previousBalances = {};
-    let previousPendingTxCounts = {};
-    let previousChainLengths = {};
     let publicKeyToLabelMap = {};
     let animatingNodes = new Set();
 
@@ -340,8 +332,7 @@
         };
 
         if (publicKey) {
-            const walletLabel = getWalletLabelFromPort(parseInt(port));
-            publicKeyToLabelMap[publicKey] = walletLabel;
+            publicKeyToLabelMap[publicKey] = getWalletLabelFromPort(parseInt(port));
         }
 
         document.getElementById('popup-title').textContent = `Node: ${port} ${role === 'miner' ? '⛏' : ''}`;
@@ -435,8 +426,7 @@
         nodes.forEach(node => {
             if (node.info && node.info.public_key) {
                 const port = node.id.split(':')[1];
-                const walletLabel = getWalletLabelFromPort(parseInt(port));
-                publicKeyToLabelMap[node.info.public_key] = walletLabel;
+                publicKeyToLabelMap[node.info.public_key] = getWalletLabelFromPort(parseInt(port));
             }
         });
     }
@@ -589,7 +579,7 @@
                 }
                 return response.json();
             })
-            .then(data => {
+            .then(() => {
                 mineBtn.innerHTML = 'Mine Block';
                 mineBtn.disabled = false;
                 closePopup();
@@ -713,7 +703,6 @@
 
             data.edges.forEach(edge => {
                 const edgeId = `${edge.from}-${edge.to}`;
-                const reverseEdgeId = `${edge.to}-${edge.from}`;
 
                 const exists = existingEdgeIds.some(id => {
                     const existingEdge = currentEdges.get(id);
