@@ -476,7 +476,8 @@
                             ${!isCoinbase ? `<strong>From:</strong> ${formatPublicKeyWithLabel(tx.sender)}<br>` : ''}
                             <strong>To:</strong> ${formatPublicKeyWithLabel(tx.recipient)}<br>
                             <strong>Amount:</strong> <span style="color: #f57c00;">${tx.amount}</span><br>
-                            <strong>Time:</strong> ${new Date(tx.timestamp * 1000).toLocaleTimeString()}
+                            <strong>Time:</strong> ${new Date(tx.timestamp * 1000).toLocaleTimeString()}<br>
+                            <strong>Signature:</strong> <span class="json-value" style="font-size: 10px;">${tx.signature.substring(0, 20)}...</span>
                         </div>
                     `;
                 });

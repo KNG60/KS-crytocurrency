@@ -43,7 +43,7 @@ def export_private_key_pem(private_key) -> str:
 
 def sign_tx(private_key, tx: Transaction) -> SignedTransaction:
     signature = private_key.sign(
-        tx.txid.encode('utf-8'),
-        ec.ECDSA(hashes.SHA256())
-    )
+        bytes.fromhex(tx.txid),
+        ec.ECDSA(hashes.SHA256())  # ECDSA = algorytm podpisu cyfrowego oparty na krzywych eliptycznych
+    )  # teoretycznie mogłoby być ec.ECDSA(Prehashed(hashes.SHA256())), bo txid jest już zahashowane
     return SignedTransaction(tx, signature.hex())

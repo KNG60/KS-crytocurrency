@@ -98,10 +98,11 @@ def verify_signature(signed_tx: SignedTransaction) -> bool:
     pub_bytes = bytes.fromhex(public_key_hex)
     pub_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256K1(), pub_bytes)
     signature_bytes = bytes.fromhex(signed_tx.signature)
+    txid_bytes = bytes.fromhex(signed_tx.transaction.txid)
     try:
         pub_key.verify(
             signature_bytes,
-            signed_tx.transaction.txid.encode('utf-8'),
+            txid_bytes,
             ec.ECDSA(hashes.SHA256())
         )
     except InvalidSignature:
