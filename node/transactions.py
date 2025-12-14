@@ -123,6 +123,8 @@ def validate_transactions(txs: List[SignedTransaction], miner: str, mining_rewar
         return False
 
     for signed_tx in txs[1:]:
+        if signed_tx.transaction.sender is None:
+            return False
         if not verify_signature(signed_tx):
             return False
 

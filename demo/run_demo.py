@@ -64,6 +64,11 @@ def run_cmd(cmd, password=None):
     return proc.returncode
 
 
+def kill_node_processes():
+    print("Killing any existing node processes...")
+    subprocess.run(["pkill", "-9", "-f", "run_node.py"], check=False)
+
+
 def clean_databases():
     db_dir = PARENT_DIR / "node" / "db"
     if db_dir.exists():
@@ -246,6 +251,7 @@ def main():
     print("\n" + "#" * 70)
     print("# FULL DEMO")
     print("#" * 70)
+    kill_node_processes()
     clean_databases()
 
     try:
