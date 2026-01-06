@@ -239,6 +239,77 @@
             font-size: 12px;
             margin-bottom: 3px;
         }
+
+        /* Copy command popup */
+        #copy-popup {
+            display: none;
+            position: fixed;
+            background: #fff;
+            border-radius: 10px;
+            padding: 18px 16px;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.2);
+            z-index: 2001;
+            min-width: 360px;
+            max-width: 640px;
+            width: 92%;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+        #copy-popup h3 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #copy-popup textarea {
+            width: 100%;
+            height: 90px;
+            font-family: monospace;
+            font-size: 12px;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 8px;
+            background: #fafafa;
+        }
+        #copy-popup .button-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            justify-content: flex-end;
+        }
+        #copy-popup .copy-status {
+            color: #4CAF50;
+            font-size: 12px;
+            display: none;
+            margin-top: 8px;
+        }
+
+        #copy-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            z-index: 2000;
+        }
+
+        .btn {
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background: #f7f7f7;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn.primary {
+            background: #2196F3;
+            border-color: #1976D2;
+            color: #fff;
+        }
+        .btn.primary:hover { background: #0b7dda; }
+        .btn:hover { background: #eee; }
     </style>
 </head>
 <body>
@@ -544,14 +615,8 @@
 
         const command = `python run_wallet.py create-tx ${senderWallet} ${recipientWallet} ${amount} --node http://127.0.0.1:${senderPort}`;
 
-        const textarea = document.createElement('textarea');
-        textarea.value = command;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-
-        alert(`Transaction command copied to clipboard!\n\nRun this command in terminal:\n${command}`);
+        // Show copy popup with the command and auto-copy once
+        showCopyPopup(command);
 
         document.getElementById('tx-recipient-select').value = '';
         document.getElementById('tx-amount-input').value = '';
@@ -749,7 +814,72 @@
     eventSource.onerror = (error) => {
         console.error('SSE error:', error);
     };
+
+    // Copy popup logic
+    function showCopyPopup(command) {
+        const popup = document.getElementById('copy-popup');
+        const overlay = document.getElementById('copy-overlay');
+        const cmdField = document.getElementById('copy-command-field');
+
+        cmdField.value = command;
+        popup.style.display = 'block';
+        overlay.style.display = 'block';
+
+        // ESC to close
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                closeCopyPopup();
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+
+        // Try modern clipboard API first; fallback to execCommand
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(command).catch(() => {
+                cmdField.select();
+                document.execCommand('copy');
+            });
+        } else {
+            cmdField.select();
+            document.execCommand('copy');
+        }
+    }
+
+    function copyCommandAgain() {
+        const cmdField = document.getElementById('copy-command-field');
+        const text = cmdField.value || '';
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).catch(() => {
+                cmdField.select();
+                document.execCommand('copy');
+            });
+        } else {
+            cmdField.select();
+            document.execCommand('copy');
+        }
+    }
+
+    function closeCopyPopup() {
+        const popup = document.getElementById('copy-popup');
+        const overlay = document.getElementById('copy-overlay');
+        popup.style.display = 'none';
+        overlay.style.display = 'none';
+    }
 </script>
+
+<!-- Copy command popup -->
+<div id="copy-overlay" onclick="closeCopyPopup()"></div>
+<div id="copy-popup">
+    <h3>Transaction Command</h3>
+    <textarea id="copy-command-field" readonly></textarea>
+    <div class="button-row">
+        <button class="btn" onclick="copyCommandAgain()">Copy</button>
+        <button class="btn primary" onclick="closeCopyPopup()">Close</button>
+    </div>
+    <div style="margin-top:8px; font-size:12px; color:#555;">Paste this command in your terminal to send the transaction.</div>
+</div>
 </body>
 </html>
 
