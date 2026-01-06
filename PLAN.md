@@ -1,3 +1,13 @@
+## KM4 Podsumowanie 
+
+- Asynchroniczne kopanie: uruchomiony wątek minera w `NodeServer` z możliwością bezpiecznego przerwania bieżącej próby (stop event).
+- Nowe API minera: `POST /miner/start`, `POST /miner/stop`, `GET /miner/status` + auto-start dla węzłów uruchamianych z rolą `miner`.
+- Polityka restartu kopania: natychmiast przy nowym bloku; po nowych transakcjach dopiero po przekroczeniu progu `MINING_MIN = 10` w mempoolu.
+- UI: przycisk Start/Stop (Start — zielony, Stop — czerwony) oraz wskaźnik stanu `Running/Stopped` w oknie węzła; stan inicjalizowany przez `/miner/status`.
+- Demo: `run_random_network.py` przełączone z synchronicznego `/mine` na asynchroniczne startowanie minera i polling wysokości łańcucha — eliminuje time‑outy.
+- Dodatkowo: przerwanie kopania po przyjęciu nowego bloku lub reorganizacji łańcucha w celu natychmiastowej pracy na nowej głowie.
+
+
 ## Plan Projektu
 
 ### **Etap 1: Sieć i bezpieczny portfel**
