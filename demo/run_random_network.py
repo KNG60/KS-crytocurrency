@@ -11,8 +11,8 @@ PARENT_DIR = Path(__file__).parent.parent
 
 HOST = "127.0.0.1"
 START_PORT = 5000
-MIN_NODES = 15
-MAX_NODES = 20
+MIN_NODES = 3
+MAX_NODES = 3
 MIN_SEEDS = 1
 MAX_SEEDS = 5
 MINER_PROBABILITY = 0.8
@@ -187,34 +187,57 @@ class NetworkManager:
             return
 
         print("\n" + "=" * 70)
-        print("STARTING MINING OPERATIONS")
+        print("STARTING MINING OPERATIONS (async)")
         print("=" * 70)
-        print(f"Will perform {MINE_OPERATIONS_COUNT} mining operations")
+        print(f"Will perform {MINE_OPERATIONS_COUNT} mining checks")
         print(f"Available miners: {len(self.miner_ports)}")
         print("=" * 70 + "\n")
 
+        # Ensure all miners are running
+        for p in self.miner_ports:
+            try:
+                requests.post(f"http://{HOST}:{p}/miner/start", timeout=2)
+            except Exception:
+                pass
+
+        def get_height(port: int) -> int:
+            try:
+                r = requests.get(f"http://{HOST}:{port}/blocks", timeout=3)
+                if r.status_code == 200:
+                    return len(r.json())
+            except Exception:
+                return -1
+            return -1
+
         for i in range(MINE_OPERATIONS_COUNT):
             miner_port = random.choice(self.miner_ports)
+            print(f"[{i + 1}/{MINE_OPERATIONS_COUNT}] Trigger/start mining on port {miner_port}...", end=" ")
 
-            print(f"[{i + 1}/{MINE_OPERATIONS_COUNT}] Sending mine request to port {miner_port}...", end=" ")
-
+            # Start miner (idempotent) and wait for chain height to increase
             try:
-                response = requests.post(
-                    f"http://{HOST}:{miner_port}/mine",
-                    timeout=10
-                )
+                requests.post(f"http://{HOST}:{miner_port}/miner/start", timeout=3)
+            except Exception:
+                print("✗ FAILED - cannot contact miner")
+                continue
 
-                if response.status_code == 200:
-                    print(f"✓ SUCCESS - Block mined: {response.json()}")
-                else:
-                    print(f"✗ FAILED - Status: {response.status_code}")
+            h0 = get_height(miner_port)
+            if h0 < 0:
+                print("✗ FAILED - cannot read height")
+                continue
 
-            except requests.exceptions.Timeout:
-                print("✗ FAILED - Timeout")
-            except requests.exceptions.ConnectionError:
-                print("✗ FAILED - Connection error (miner might be down)")
+            deadline = time.time() + 20 
+            mined = False
+            while time.time() < deadline:
+                time.sleep(0.5)
+                h1 = get_height(miner_port)
+                if h1 > h0:
+                    mined = True
+                    break
 
-            time.sleep(1)
+            if mined:
+                print(f"✓ SUCCESS - New height {h1} (was {h0})")
+            else:
+                print("⋯ NO BLOCK WITHIN TIME BUDGET")
 
     def wait_forever(self):
         try:

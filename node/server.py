@@ -3,14 +3,19 @@ import os
 import random
 import re
 import time
-from threading import Thread
-from typing import Set, Tuple
+from threading import Event, Thread
+from typing import Optional, Set, Tuple
 
 import requests
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from node.blockchain import Block, Blockchain, calculate_balance_with_mempool
+from node.blockchain import (
+    MINING_MIN,
+    Block,
+    Blockchain,
+    calculate_balance_with_mempool,
+)
 from node.network import NetworkClient
 from node.storage import ChainStorage, PeerStorage
 from node.transactions import SignedTransaction
@@ -19,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 MAX_PEERS = 5
 MAX_BOOTSTRAP_PEERS = 3
-DIFFICULTY = 4
+DIFFICULTY = 6
 
 
 class NodeServer:
@@ -54,6 +59,72 @@ class NodeServer:
 
         if self.centralized_manager_url:
             Thread(target=self._register_with_centralized_manager, daemon=True).start()
+
+        self.mining_enabled: bool = False
+        self.mining_thread: Optional[Thread] = None
+        self.mining_stop_event: Event = Event()
+
+    def _mining_worker(self):
+        logger.info("Mining thread started")
+        while self.mining_enabled:
+            try:
+                self.mining_stop_event.clear()
+                last_d = self.chain_storage.get_last_block()
+                prev = Block.from_dict(last_d) if last_d else self.blockchain.create_genesis()
+
+                txs_snapshot = list(self.pending_transactions)
+
+                new_block = self.blockchain.mine_next_block(
+                    prev,
+                    self.public_key,
+                    txs=txs_snapshot,
+                    stop_event=self.mining_stop_event
+                )
+
+                if not self.mining_enabled:
+                    break
+                if new_block is None:
+                    continue
+
+                self.chain_storage.save_block(new_block.to_dict())
+                self.remove_transactions_from_mempool(new_block)
+
+                peers = self.storage.get_all_peers()
+                self.network.broadcast_block(peers, new_block.to_dict())
+
+                self._notify_centralized_manager()
+                logger.info(f"Mined new block h={new_block.height} hash={new_block.hash[:16]}...")
+            except Exception as e:
+                logger.error(f"Mining thread error: {type(e).__name__}: {e}")
+                time.sleep(0.5)
+        logger.info("Mining thread stopped")
+
+    def _interrupt_mining(self):
+        if hasattr(self, 'mining_stop_event') and self.mining_stop_event is not None:
+            self.mining_stop_event.set()
+
+    def start_mining(self):
+        if self.role != "miner":
+            logger.info("Node role is not 'miner'; skipping start_mining")
+            return False
+        if self.mining_enabled and self.mining_thread and self.mining_thread.is_alive():
+            return True
+        self.mining_enabled = True
+        self.mining_thread = Thread(target=self._mining_worker, daemon=True)
+        self.mining_thread.start()
+        return True
+
+    def stop_mining(self):
+        if not self.mining_enabled:
+            return True
+        self.mining_enabled = False
+        self._interrupt_mining()
+        try:
+            if self.mining_thread:
+                self.mining_thread.join(timeout=2)
+        except Exception:
+            pass
+        return True
 
     def _register_with_centralized_manager(self):
         time.sleep(2)
@@ -304,6 +375,8 @@ class NodeServer:
                 if should_try_adopt:
                     adopted, new_len = self._try_adopt_longer_chain(min_target_len=incoming.height + 1)
                     if adopted:
+                        # New chain adopted, interrupt current mining round
+                        self._interrupt_mining()
                         self.remove_transactions_from_mempool(incoming)
                         self._notify_centralized_manager()
                         return jsonify({"status": "reorganized", "height": new_len - 1}), 201
@@ -317,6 +390,9 @@ class NodeServer:
             self.network.broadcast_block(peers, incoming.to_dict())
 
             self._notify_centralized_manager()
+
+            # Interrupt mining so the miner restarts on the new tip
+            self._interrupt_mining()
 
             return jsonify({"status": "accepted", "height": incoming.height}), 201
 
@@ -374,12 +450,34 @@ class NodeServer:
                 return jsonify({"error": f"invalid transaction: {e}"}), 400
 
             try:
+                prev_count = len(self.pending_transactions)
                 self.add_transaction(signed_tx)
+                new_count = len(self.pending_transactions)
+                # Restart mining only when mempool size crosses the MINING_MIN threshold
+                if prev_count < MINING_MIN and new_count > MINING_MIN:
+                    self._interrupt_mining()
                 self.broadcast_transaction(data)
                 self._notify_centralized_manager()
                 return jsonify({"status": "accepted", "txid": signed_tx.transaction.txid}), 201
             except Exception as e:
                 return jsonify({"status": "rejected", "txid": signed_tx.transaction.txid, "error": str(e)}), 400
+
+        @self.app.route('/miner/start', methods=['POST'])
+        def miner_start():
+            if self.role != "miner":
+                return jsonify({"error": "node is not a miner"}), 403
+            started = self.start_mining()
+            return jsonify({"status": "started" if started else "noop"}), 200
+
+        @self.app.route('/miner/stop', methods=['POST'])
+        def miner_stop():
+            stopped = self.stop_mining()
+            return jsonify({"status": "stopped" if stopped else "noop"}), 200
+
+        @self.app.route('/miner/status', methods=['GET'])
+        def miner_status():
+            is_running = self.mining_enabled and self.mining_thread and self.mining_thread.is_alive()
+            return jsonify({"running": bool(is_running), "role": self.role}), 200
 
     def bootstrap(self):
         logger.info(f"Bootstrapping node with {len(self.seed_peers)} seed peers")
@@ -420,4 +518,7 @@ class NodeServer:
             Thread(target=self.bootstrap, daemon=True).start()
 
         logger.info(f"Starting node on {self.host}:{self.port} role={self.role}")
+
+        if self.role == "miner":
+            self.start_mining()
         self.app.run(host=self.host, port=self.port)

@@ -74,6 +74,11 @@
         #node-popup button:hover:not(:disabled) {
             background: #45a049;
         }
+    /* Start/Stop color variants */
+    #node-popup button.btn-start { background: #4CAF50; }
+    #node-popup button.btn-start:hover:not(:disabled) { background: #45a049; }
+    #node-popup button.btn-stop { background: #F44336; }
+    #node-popup button.btn-stop:hover:not(:disabled) { background: #e53935; }
 
         #node-popup button:disabled {
             background: #ccc;
@@ -108,6 +113,21 @@
             flex: 1;
             margin-top: 0;
         }
+
+        /* Miner status badge */
+        #miner-status {
+            align-self: center;
+            padding: 6px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+            background: #9e9e9e; /* default: stopped */
+            min-width: 84px;
+            text-align: center;
+        }
+        #miner-status.running { background: #4CAF50; }
+        #miner-status.stopped { background: #9e9e9e; }
 
         .spinner {
             border: 3px solid #f3f3f3;
@@ -320,7 +340,8 @@
     <h3 id="popup-title">Node Info</h3>
     <div id="popup-content"></div>
     <div class="button-container">
-        <button id="mine-btn" onclick="mineBlock()">Mine Block</button>
+        <button id="mine-btn" class="btn-start" onclick="toggleMining()">Start</button>
+        <span id="miner-status" class="stopped">Stopped</span>
     </div>
 </div>
 <div class="legend">
@@ -475,9 +496,12 @@
         if (role === 'miner') {
             mineBtn.disabled = false;
             mineBtn.style.display = 'block';
-            mineBtn.innerHTML = 'Mine Block';
+            // Initialize button text/state from live miner status
+            refreshMiningButton(port);
         } else {
             mineBtn.style.display = 'none';
+            const badge = document.getElementById('miner-status');
+            if (badge) badge.style.display = 'none';
         }
     }
 
@@ -622,40 +646,66 @@
         document.getElementById('tx-amount-input').value = '';
     }
 
-    function mineBlock() {
+    async function fetchMinerStatus(port) {
+        try {
+            const res = await fetch(`http://127.0.0.1:${port}/miner/status`);
+            if (!res.ok) return null;
+            return await res.json();
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function setMiningButtonState(running) {
+        const btn = document.getElementById('mine-btn');
+        const badge = document.getElementById('miner-status');
+        if (!btn) return;
+        btn.dataset.running = running ? 'true' : 'false';
+        btn.innerHTML = running ? 'Stop' : 'Start';
+        btn.classList.remove('btn-start', 'btn-stop');
+        btn.classList.add(running ? 'btn-stop' : 'btn-start');
+        btn.disabled = false;
+        if (badge) {
+            badge.style.display = 'inline-block';
+            badge.textContent = running ? 'Running' : 'Stopped';
+            badge.classList.remove('running', 'stopped');
+            badge.classList.add(running ? 'running' : 'stopped');
+        }
+    }
+
+    async function refreshMiningButton(port) {
+        const btn = document.getElementById('mine-btn');
+        if (!btn) return;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Loading...';
+        const status = await fetchMinerStatus(port);
+        if (status && typeof status.running === 'boolean') {
+            setMiningButtonState(status.running);
+        } else {
+            // Fallback: enable Start if status unknown
+            setMiningButtonState(false);
+        }
+    }
+
+    async function toggleMining() {
         if (!currentNodeData) return;
-
-        const mineBtn = document.getElementById('mine-btn');
+        const btn = document.getElementById('mine-btn');
+        if (!btn) return;
         const port = currentNodeData.id.split(':')[1];
-
-        mineBtn.disabled = true;
-        mineBtn.innerHTML = '<span class="spinner"></span>Mining...';
-
-        fetch(`http://127.0.0.1:${port}/mine`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
+        const running = btn.dataset.running === 'true';
+        btn.disabled = true;
+        btn.innerHTML = running ? '<span class="spinner"></span>Stopping...' : '<span class="spinner"></span>Starting...';
+        try {
+            const endpoint = running ? 'stop' : 'start';
+            const res = await fetch(`http://127.0.0.1:${port}/miner/${endpoint}`, { method: 'POST' });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || `HTTP ${res.status}`);
             }
-        })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(errorData => {
-                        throw new Error(errorData.error || `HTTP ${response.status}`);
-                    });
-                }
-                return response.json();
-            })
-            .then(() => {
-                mineBtn.innerHTML = 'Mine Block';
-                mineBtn.disabled = false;
-                closePopup();
-            })
-            .catch(error => {
-                console.error('Failed to mine block:', error);
-                alert(`Failed to mine block: ${error.message}`);
-                mineBtn.innerHTML = 'Mine Block';
-                mineBtn.disabled = false;
-            });
+        } catch (e) {
+            alert(`Failed to ${running ? 'stop' : 'start'} miner: ${e.message}`);
+        }
+        await refreshMiningButton(port);
     }
 
     function animateBalanceChange(nodeId) {

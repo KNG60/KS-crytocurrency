@@ -1,16 +1,19 @@
 import time
+from threading import Event
 from typing import Dict, List, Optional
 
 from .transactions import (
-    Transaction,
+    COINBASE_SIGNATURE,
     SignedTransaction,
-    serialize_signed_transactions,
+    Transaction,
     deserialize_signed_transactions,
-    validate_transactions, COINBASE_SIGNATURE
+    serialize_signed_transactions,
+    validate_transactions,
 )
 from .utils import hash_dict
 
 MINING_REWARD = 50.0
+MINING_MIN = 10
 
 
 def calculate_balance_with_mempool(
@@ -138,13 +141,15 @@ class Blockchain:
 
         return True
 
-    def mine_next_block(self, prev: Block, miner_id: str, txs: List[SignedTransaction]) -> Block:
+    def mine_next_block(self, prev: Block, miner_id: str, txs: List[SignedTransaction], stop_event: Optional["Event"] = None) -> Optional[Block]:
         coinbase = self.create_coinbase_transaction(miner_id)
         all_txs = [coinbase] + txs
 
         height = prev.height + 1
         nonce = 0
         while True:
+            if stop_event is not None and getattr(stop_event, "is_set", None) and stop_event.is_set():
+                return None
             block_data = {
                 "height": height,
                 "prev_hash": prev.hash,
