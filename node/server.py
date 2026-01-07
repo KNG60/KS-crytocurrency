@@ -97,6 +97,11 @@ class NodeServer:
                 self.chain_storage.save_block(new_block.to_dict())
                 self.remove_transactions_from_mempool(new_block)
 
+                # Mark known before broadcasting to avoid duplicate buffering as orphan
+                self.known_hashes.add(new_block.hash)
+                self._flush_orphans_extending_tip()
+                self._prune_orphans()
+
                 peers = self.storage.get_all_peers()
                 self.network.broadcast_block(peers, new_block.to_dict())
 
@@ -383,6 +388,9 @@ class NodeServer:
             prev = Block.from_dict(last) if last else None
 
             chain = self.chain_storage.load_chain()
+            # Early duplicate guard: if we already have this block, ignore politely
+            if any(b.hash == incoming.hash for b in chain):
+                return jsonify({"status": "duplicate", "height": incoming.height}), 200
             chain_with_incoming = chain + [incoming]
 
             if not self.blockchain.validate_chain(chain_with_incoming):
