@@ -11,8 +11,8 @@ PARENT_DIR = Path(__file__).parent.parent
 
 HOST = "127.0.0.1"
 START_PORT = 5000
-MIN_NODES = 3
-MAX_NODES = 3
+MIN_NODES = 4
+MAX_NODES = 6
 MIN_SEEDS = 1
 MAX_SEEDS = 5
 MINER_PROBABILITY = 0.8
@@ -88,11 +88,12 @@ class NetworkManager:
             f"manager.run()"
         ]
 
+        # Avoid PIPE without readers to prevent blocking on large output
         proc = subprocess.Popen(
             cmd,
             cwd=str(PARENT_DIR),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             text=True
         )
 
@@ -127,11 +128,12 @@ class NetworkManager:
         else:
             print(" (bootstrap node)")
 
+        # Avoid PIPE without readers to prevent blocking on large output
         proc = subprocess.Popen(
             cmd,
             cwd=str(PARENT_DIR),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             text=True
         )
 
