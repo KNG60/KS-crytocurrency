@@ -413,6 +413,7 @@
 
         const info = node.info || {};
         const chain = info.chain || [];
+        const forks = info.forks || [];
         const pendingTransactions = info.pending_transactions || [];
         const publicKey = info.public_key;
         const balance = info.balance !== undefined ? info.balance : '?';
@@ -447,6 +448,19 @@
                 </div>
                 <div class="expandable-content" id="chain-section">
                     ${renderBlockchain(chain)}
+                </div>
+            </div>
+        `;
+
+        const forkCount = forks.length;
+        content += `
+            <div class="expandable-section">
+                <div class="expandable-header" onclick="toggleSection('fork-section')">
+                    <span>Fork Chain (${forkCount} blocks)</span>
+                    <span class="arrow" id="fork-arrow">▶</span>
+                </div>
+                <div class="expandable-content" id="fork-section">
+                    ${renderBlockchain(forks)}
                 </div>
             </div>
         `;
