@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 MAX_PEERS = 5
 MAX_BOOTSTRAP_PEERS = 3
 DIFFICULTY = 5
+# Orphan/fork pruning (local-only)
+ORPHAN_MAX_DEPTH = 6     # prune orphans older than this behind the tip
 
 
 class NodeServer:
@@ -100,6 +102,10 @@ class NodeServer:
 
                 self._notify_centralized_manager()
                 logger.info(f"Mined new block h={new_block.height} hash={new_block.hash[:16]}...")
+                # After extending the tip, try attaching/pruning orphans
+                self.known_hashes.add(new_block.hash)
+                self._flush_orphans_extending_tip()
+                self._prune_orphans()
             except Exception as e:
                 logger.error(f"Mining thread error: {type(e).__name__}: {e}")
                 time.sleep(0.5)
@@ -399,10 +405,12 @@ class NodeServer:
                                 self._notify_centralized_manager()
                                 return jsonify({"status": "reorganized", "height": new_len - 1}), 201
                         # Accepted as orphan
+                        self._prune_orphans()
                         return jsonify({"status": "orphan-buffered", "height": incoming.height}), 202
                 else:
                     # Parent unknown: cache under its prev_hash to link later
                     self._store_orphan(incoming)
+                    self._prune_orphans()
                     return jsonify({"status": "orphan-buffered", "height": incoming.height}), 202
 
                 # If we got here, try network-driven adoption for clearly longer chains
@@ -423,6 +431,7 @@ class NodeServer:
             # Mark as known and attempt to flush any orphans that now extend the tip
             self.known_hashes.add(incoming.hash)
             self._flush_orphans_extending_tip()
+            self._prune_orphans()
 
             peers = self.storage.get_all_peers()
             self.network.broadcast_block(peers, incoming.to_dict())
@@ -622,3 +631,21 @@ class NodeServer:
                 # If appended chain invalid, keep it buffered (do not discard) and stop
                 self.orphans_by_prev.setdefault(tip_hash, []).append(next_block)
                 break
+
+    def _prune_orphans(self) -> None:
+        """Prune orphan blocks that are too old relative to the tip (local-only)."""
+        try:
+            last_d = self.chain_storage.get_last_block()
+            tip_h = int(last_d["height"]) if last_d else -1
+        except Exception:
+            tip_h = -1
+
+        # Remove deep/old orphans beyond max depth behind the tip
+        for parent_hash, lst in list(self.orphans_by_prev.items()):
+            kept = [b for b in lst if b.height >= tip_h - ORPHAN_MAX_DEPTH]
+            if kept:
+                self.orphans_by_prev[parent_hash] = kept
+            else:
+                self.orphans_by_prev.pop(parent_hash, None)
+
+        # No global cap: purely local depth-based pruning to simulate distributed behavior
