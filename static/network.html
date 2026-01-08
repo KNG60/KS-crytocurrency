@@ -374,6 +374,8 @@
     let previousBalances = {};
     let publicKeyToLabelMap = {};
     let animatingNodes = new Set();
+    const MINER_STATUS_TTL_MS = 2000;
+    let minerStatusCache = {};
 
     const options = {
         nodes: {
@@ -722,6 +724,45 @@
         await refreshMiningButton(port);
     }
 
+    function setMinerNodeColor(nodeId, running) {
+        if (!network) return;
+        const nodes = network.body.data.nodes;
+        const node = nodes.get(nodeId);
+        if (!node) return;
+        nodes.update({
+            id: nodeId,
+            color: running ? { background: '#FFD700', border: '#FF9800' } : { background: '#9e9e9e', border: '#616161' },
+            borderWidth: 3,
+            shape: 'box'
+        });
+    }
+
+    async function refreshMinerNodeColors() {
+        if (!network) return;
+        const now = Date.now();
+        const tasks = [];
+        nodesData.forEach(n => {
+            const role = n.info?.role;
+            if (role === 'miner') {
+                const port = n.id.split(':')[1];
+                const cache = minerStatusCache[port];
+                if (cache && (now - cache.ts) < MINER_STATUS_TTL_MS) {
+                    setMinerNodeColor(n.id, !!cache.running);
+                } else {
+                    tasks.push((async () => {
+                        const status = await fetchMinerStatus(port);
+                        const running = !!(status && status.running === true);
+                        minerStatusCache[port] = { running, ts: Date.now() };
+                        setMinerNodeColor(n.id, running);
+                    })());
+                }
+            }
+        });
+        if (tasks.length) {
+            try { await Promise.allSettled(tasks); } catch (e) {}
+        }
+    }
+
     function animateBalanceChange(nodeId) {
         if (!network) return;
 
@@ -856,6 +897,9 @@
             });
 
         }
+
+        // Refresh miner node colors based on live /miner/status
+        refreshMinerNodeColors();
     }
 
     fetch('http://127.0.0.1:8080/network-graph')
