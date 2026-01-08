@@ -25,8 +25,7 @@ logger = logging.getLogger(__name__)
 MAX_PEERS = 5
 MAX_BOOTSTRAP_PEERS = 3
 DIFFICULTY = 5
-# Orphan/fork pruning (local-only)
-ORPHAN_MAX_DEPTH = 6     # prune orphans older than this behind the tip
+ORPHAN_MAX_DEPTH = 6
 
 
 class NodeServer:
@@ -56,10 +55,7 @@ class NodeServer:
             "/*": {"origins": [re.compile(r"^http://127.0.0.1:\d+$")]}
         })
 
-        # Orphan and fork handling (in-memory)
-        # key: prev_hash -> list of blocks whose parent is prev_hash
         self.orphans_by_prev: Dict[str, List[Block]] = {}
-        # quick known set to avoid reprocessing duplicates
         self.known_hashes: Set[str] = set()
 
         self._setup_routes()
@@ -97,7 +93,6 @@ class NodeServer:
                 self.chain_storage.save_block(new_block.to_dict())
                 self.remove_transactions_from_mempool(new_block)
 
-                # Mark known before broadcasting to avoid duplicate buffering as orphan
                 self.known_hashes.add(new_block.hash)
                 self._flush_orphans_extending_tip()
                 self._prune_orphans()
@@ -107,7 +102,7 @@ class NodeServer:
 
                 self._notify_centralized_manager()
                 logger.info(f"Mined new block h={new_block.height} hash={new_block.hash[:16]}...")
-                # After extending the tip, try attaching/pruning orphans
+
                 self.known_hashes.add(new_block.hash)
                 self._flush_orphans_extending_tip()
                 self._prune_orphans()
@@ -227,7 +222,7 @@ class NodeServer:
             self.chain_storage.save_block(genesis.to_dict())
             logger.info(f"Genesis created: h=0 hash={genesis.hash[:16]}...")
 
-        # Index known main chain hashes for orphan linkage
+
         main_chain = self.chain_storage.load_chain()
         self.known_hashes = {b.hash for b in main_chain}
 
@@ -388,23 +383,22 @@ class NodeServer:
             prev = Block.from_dict(last) if last else None
 
             chain = self.chain_storage.load_chain()
-            # Early duplicate guard: if we already have this block, ignore politely
+
             if any(b.hash == incoming.hash for b in chain):
                 return jsonify({"status": "duplicate", "height": incoming.height}), 200
             chain_with_incoming = chain + [incoming]
 
             if not self.blockchain.validate_chain(chain_with_incoming):
-                # If it doesn't attach to tip, treat as possible orphan/fork candidate
+
                 local_height = prev.height if prev else -1
 
-                # Fast path: if this block references a known parent in our main chain, stash as orphan
-                # and trigger reorg attempt if its height exceeds our tip
+
                 if incoming.prev_hash in self.known_hashes:
-                    # Basic per-block validation against its stated parent
+
                     parent_block = next((b for b in chain if b.hash == incoming.prev_hash), None)
                     if parent_block and self.blockchain.validate_block(incoming, parent_block):
                         self._store_orphan(incoming)
-                        # If the orphan's height is beyond our tip, try adopt a longer chain from peers
+
                         if incoming.height > local_height:
                             adopted, new_len = self._try_adopt_longer_chain(min_target_len=incoming.height + 1)
                             if adopted:
@@ -412,16 +406,16 @@ class NodeServer:
                                 self.remove_transactions_from_mempool(incoming)
                                 self._notify_centralized_manager()
                                 return jsonify({"status": "reorganized", "height": new_len - 1}), 201
-                        # Accepted as orphan
+
                         self._prune_orphans()
                         return jsonify({"status": "orphan-buffered", "height": incoming.height}), 202
                 else:
-                    # Parent unknown: cache under its prev_hash to link later
+
                     self._store_orphan(incoming)
                     self._prune_orphans()
                     return jsonify({"status": "orphan-buffered", "height": incoming.height}), 202
 
-                # If we got here, try network-driven adoption for clearly longer chains
+
                 should_try_adopt = incoming.height >= local_height + 1
                 if should_try_adopt:
                     adopted, new_len = self._try_adopt_longer_chain(min_target_len=incoming.height + 1)
@@ -436,7 +430,7 @@ class NodeServer:
 
             self.remove_transactions_from_mempool(incoming)
 
-            # Mark as known and attempt to flush any orphans that now extend the tip
+
             self.known_hashes.add(incoming.hash)
             self._flush_orphans_extending_tip()
             self._prune_orphans()
@@ -446,7 +440,7 @@ class NodeServer:
 
             self._notify_centralized_manager()
 
-            # Interrupt mining so the miner restarts on the new tip
+
             self._interrupt_mining()
 
             return jsonify({"status": "accepted", "height": incoming.height}), 201
@@ -466,7 +460,7 @@ class NodeServer:
 
             self.pending_transactions.clear()
 
-            # Update known set and flush any now-attachable orphans
+
             self.known_hashes.add(new_block.hash)
             self._flush_orphans_extending_tip()
 
@@ -487,12 +481,12 @@ class NodeServer:
         def get_info():
             chain = self.chain_storage.load_chain()
             balance = calculate_balance_with_mempool(chain, self.public_key, self.pending_transactions)
-            # Flatten orphan blocks for UI diagnostics
+
             orphan_blocks: List[Dict] = []
             for lst in self.orphans_by_prev.values():
                 for b in lst:
                     orphan_blocks.append(b.to_dict())
-            # Sort by height then hash for stable view
+
             orphan_blocks.sort(key=lambda d: (int(d.get("height", -1)), str(d.get("hash", ""))))
             return jsonify({
                 "public_key": self.public_key,
@@ -522,7 +516,7 @@ class NodeServer:
                 prev_count = len(self.pending_transactions)
                 self.add_transaction(signed_tx)
                 new_count = len(self.pending_transactions)
-                # Restart mining only when mempool size crosses the MINING_MIN threshold
+
                 if prev_count < MINING_MIN and new_count > MINING_MIN:
                     self._interrupt_mining()
                 self.broadcast_transaction(data)
@@ -592,7 +586,7 @@ class NodeServer:
             self.start_mining()
         self.app.run(host=self.host, port=self.port)
 
-    # -------------------- Fork / Orphan helpers --------------------
+
     def _store_orphan(self, block: Block) -> None:
         if block.hash in self.known_hashes:
             return
@@ -612,17 +606,16 @@ class NodeServer:
             candidates = self.orphans_by_prev.get(tip_hash) or []
             if not candidates:
                 break
-            # Choose one deterministically (e.g., smallest hash) to extend; others remain as forks
+
             candidates.sort(key=lambda b: b.hash)
             next_block = candidates.pop(0)
             if not candidates:
-                # Remove empty list to stop loop when no more children
+
                 self.orphans_by_prev.pop(tip_hash, None)
             else:
-                # Keep remaining candidates under same parent
+
                 self.orphans_by_prev[tip_hash] = candidates
 
-            # Try to append and broadcast
             chain = self.chain_storage.load_chain()
             chain_with = chain + [next_block]
             if self.blockchain.validate_chain(chain_with):
@@ -633,10 +626,10 @@ class NodeServer:
                 self.network.broadcast_block(peers, next_block.to_dict())
                 self._notify_centralized_manager()
                 logger.info(f"Attached orphan h={next_block.height} to tip; chain extended")
-                # Continue loop in case there are further descendants
+
                 continue
             else:
-                # If appended chain invalid, keep it buffered (do not discard) and stop
+
                 self.orphans_by_prev.setdefault(tip_hash, []).append(next_block)
                 break
 
@@ -648,7 +641,7 @@ class NodeServer:
         except Exception:
             tip_h = -1
 
-        # Remove deep/old orphans beyond max depth behind the tip
+
         for parent_hash, lst in list(self.orphans_by_prev.items()):
             kept = [b for b in lst if b.height >= tip_h - ORPHAN_MAX_DEPTH]
             if kept:
@@ -656,4 +649,4 @@ class NodeServer:
             else:
                 self.orphans_by_prev.pop(parent_hash, None)
 
-        # No global cap: purely local depth-based pruning to simulate distributed behavior
+

@@ -1,7 +1,8 @@
 ## Wyczyszczenie baz danych
 
 ```bash
-rm -r db/*
+rm -r node/db/*
+rm -r wallet/db/*
 ```
 
 ## Uruchomienie węzłów
