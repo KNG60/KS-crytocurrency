@@ -141,8 +141,27 @@ curl -X POST http://127.0.0.1:5000/peers \
 curl -X POST http://127.0.0.1:5010/peers \
 	-H "Content-Type: application/json" \
 	-d "{\"host\":\"127.0.0.1\",\"port\":5000}"
+```
+### 5) Usunięcie połączenia (dwukierunkowo)
 
-# Weryfikacja
-curl http://127.0.0.1:5000/peers
+Aby usunąć peering w obu kierunkach, wywołaj `DELETE /peers` na obu węzłach:
+
+```bash
+# Usuń 127.0.0.1:5010 z listy peerów węzła 5000
+curl -X DELETE http://127.0.0.1:5010/peers \
+	-H "Content-Type: application/json" \
+	-d "{\"host\":\"127.0.0.1\",\"port\":5000}"
+
+# Usuń 127.0.0.1:5000 z listy peerów węzła 5010 (połączenie dwukierunkowe)
+curl -X DELETE http://127.0.0.1:5000/peers \
+	-H "Content-Type: application/json" \
+	-d "{\"host\":\"127.0.0.1\",\"port\":5010}"
+```
+### Weryfikacja
+```bash
+curl http://127.0.0.
+1:5000/peers
 curl http://127.0.0.1:5010/peers
+Odświeżenie UI:
+curl -X POST http://127.0.0.1:8080/notify
 ```

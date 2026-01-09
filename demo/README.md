@@ -25,7 +25,23 @@ Skrypt:
 python run_random_network.py
 ```
 
-## 3. run_demo_wallet.py
+## 3. run_two_networks.py
+
+Skrypt (dwie izolowane sieci):
+
+- Buduje dwie oddzielne sieci
+- Rejestruje węzły w menedżerze grafu, uruchamia koparki
+- Łączy obie sieci po naciśnięciu Enter 
+
+### Użycie:
+
+```bash
+python run_two_networks.py
+```
+
+Po starcie skrypt wypisze adres UI oraz zapyta o parę portów do połączenia. Naciśnij Enter, aby użyć domyślnej pary (pierwsze węzły obu sieci) albo podaj dwie wartości, np. „5201 5302”.
+
+## 4. run_demo_wallet.py
 
 Skrypt:
 

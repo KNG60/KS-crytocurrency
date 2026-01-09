@@ -364,6 +364,23 @@ class NodeServer:
 
             return jsonify({"host": peer_host, "port": peer_port}), 201
 
+        @self.app.route('/peers', methods=['DELETE'])
+        def delete_peer():
+            data = request.get_json()
+            if not data or 'host' not in data or 'port' not in data:
+                return jsonify({"error": "Missing host or port"}), 400
+
+            try:
+                peer_host = str(data['host'])
+                peer_port = int(data['port'])
+            except Exception:
+                return jsonify({"error": "Invalid host or port"}), 400
+
+            self.storage.remove_peer(peer_host, peer_port)
+            self._notify_centralized_manager()
+            logger.info(f"Removed peer {peer_host}:{peer_port}")
+            return jsonify({"status": "removed", "host": peer_host, "port": peer_port}), 200
+
         @self.app.route('/blocks', methods=['GET'])
         def get_blocks():
             chain = self.chain_storage.load_chain()
@@ -595,9 +612,6 @@ class NodeServer:
         logger.info(f"Buffered orphan block h={block.height} hash={block.hash[:16]}... (prev={block.prev_hash[:16]}...)")
 
     def _flush_orphans_extending_tip(self) -> None:
-        """Attach any orphans that directly extend the current tip, iteratively.
-        If multiple orphans compete at the same parent, keep them buffered as forks.
-        """
         while True:
             last_d = self.chain_storage.get_last_block()
             if not last_d:
